@@ -13,7 +13,6 @@ class User:
         self.db = db
         if "logged_user" in self.st.session_state and self.st.session_state["logged_user"] != None:
             user = self.st.session_state["logged_user"]
-            print(user)
             self.id = user['id']
             self.name = user['name']
             self.user_name = user['user_name']
@@ -26,8 +25,9 @@ class User:
                                 (self.st.session_state["username"], self.st.session_state["password"]))
             res = self.db.cur.fetchone()
             if res != None:
+                del self.st.session_state["username"]
+                del self.st.session_state["password"]
                 self.st.session_state["logged_user"] = {'id': res[0], 'name': res[3], 'user_name': res[1], 'user_type': res[2]}
-                print(self.st.session_state["logged_user"])
                 self.st.experimental_rerun()
             else:
                 self.st.error("Credenziali errate")

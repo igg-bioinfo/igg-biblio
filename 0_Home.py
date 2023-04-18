@@ -2,6 +2,7 @@ import streamlit as st
 from functions.utils import *
 from classes.db_psql import *
 from classes.user import *
+from classes.demo import *
 
 set_title(st)
 
@@ -9,21 +10,16 @@ db = DB(st)
 db.connect()
 user = User(st, db)
 if user.login():
-    import pandas as pd
-    from datetime import datetime 
-
-    db.cur.execute('SELECT date_update, count(inv_id) FROM investigators  WHERE date_update = (SELECT MAX(date_update) FROM investigators) GROUP BY date_update')
-    res = db.cur.fetchall()
-    df = pd.DataFrame(res, columns=["update", "id"])
-    date = df["update"][0]
-    count = df["id"][0]
-    dt = datetime.date(datetime.now()) - date
 
     st.markdown("#### Anagrafica:")
-    st.write("Ultimo aggiornamento il **" + str(date) + " ("+ str(dt.days) + " giorni fa)** e sono presenti **" + str(count) + "** ricercatori")
-    if dt.days > 3 and st.button("Aggiorna"):
-        with st.spinner():
-            st.write("Aggiorna")
+    demo = Demo(st, db)
+    if demo.get_update_details():
+        st.write("Ultimo aggiornamento il **" + str(demo.update_date) + " ("+ str(demo.update_days) + " giorni fa)** e sono presenti **" + str(demo.update_count) + "** ricercatori")
+        if demo.update_days > 3 and st.button("Importa excel file"):
+            with st.spinner():
+                st.write("Aggiorna")
+    else:
+        st.write("Nessun aggiornamento")
 
 db.close()
 #   streamlit run 0_Home.py
