@@ -12,6 +12,7 @@ pipenv shell
 
 pipenv install streamlit
 pipenv install psycopg2-binary
+pipenv install openpyxl
 ```
 
 ## mamba / conda
@@ -19,21 +20,33 @@ Create an environment with python 3.10:
 ```
 mamba create --name streamlit python=3.10
 ```
-Activate the environment and inside install the libraries:
+Activate the environment and inside install the required libraries:
 ```
 conda activate streamlit
-mamba install streamlit
+pip install streamlit
 mamba install psycopg2-binary
+mamba install openpyxl
 ```
 
-## Prerequisites 
-Configure your web app with the file **.streamlit/config.toml** in your project folder.
+## Config Files 
+Create the file **.streamlit/config.toml** in your project folder with the following valued fields:
+```
+[server]
+port = ""
+
+[browser]
+serverAddress = ""
+
+[theme]
+backgroundColor = "#fff"
+```
 Create the file **.streamlit/secrets.toml** in your project folder with the following valued fields:
 ```
 db_host = ""
 db_name = ""
 db_username = ""
 db_password = ""
+scopus_key = ""
 ```
 In the end you can launch the server from the project folder inside the conda or pipenv environment:
 ```
