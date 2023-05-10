@@ -9,21 +9,27 @@ class Demo:
     name = ""
     user_name = ""
     user_type = ""
+    year = 0
     update_date = None
     update_count = None
     update_days = None
     import_columns = ["Cognome","Data di nascita","Situazione contrattuale","SCOPUS ID"]
+    columns = ["inv_name", "date_birth", "contract", "scopus_id"]
+    excel_columns = ["Nome & Cognome", "Nascita", "Contratto", "SCOPUS", "Età"]
+    min_days = 3
 
 
-    def __init__(self, st, db):
+    def __init__(self, st, db, year = None):
         self.st = st
         self.db = db
+        self.year = datetime.now().year if year == None else year
 
 
     def get_update_details(self):
-        set_msg_for_update(self.st, self)
         with self.st.spinner():
-            self.db.cur.execute("SELECT date_update, count(inv_id) FROM investigators WHERE date_update = (SELECT MAX(date_update) FROM investigators) GROUP BY date_update")
+            sql = "SELECT update_date, COUNT(inv_id) FROM investigators WHERE "
+            sql += "update_year = %s GROUP BY update_date "
+            self.db.cur.execute(sql,  [self.year])
             res = self.db.cur.fetchall()
             df = pd.DataFrame(res, columns=["update", "id"])
             if len(df) > 0:
@@ -43,46 +49,60 @@ class Demo:
     
 
     def import_excel(self, excel):
-        self.db.cur.execute("SELECT MAX(date_update) FROM investigators WHERE date_update < (SELECT MAX(date_update) FROM investigators)")
-        res = self.db.cur.fetchall()
-        df = pd.DataFrame(res, columns=["update"])
-        if len(df) > 0 and df["update"][0] != None:
-            self.db.cur.execute("DELETE FROM investigators WHERE date_update <= %s;",  [df["update"][0]])
-            self.db.conn.commit()
-
         df_excel = pd.read_excel(excel)
         for col in self.import_columns:
             if col not in list(df_excel.columns):
                 self.st.error("'" + col + "' non è una colonna valida")
                 return False
+            
+        self.db.cur.execute("DELETE FROM pubmed_pubs WHERE update_year = %s;",  [self.year])
+        self.db.conn.commit()
         
-        date_update = datetime.date(datetime.now())
+        sql_fields = "INSERT INTO investigators ("
+        sql_values = ") VALUES ("
+        for col in self.columns:
+            sql_fields += col + ", "
+            sql_values += "%s, "
+        sql_fields += "update_date, update_year"
+        sql_values += "%s, %s)"
+        update_date = datetime.date(datetime.now())
         for i, row in df_excel.iterrows():
             params = []
             for col in self.import_columns:
                 value = row[col]
                 if value in ["N.A."]:
                     value = None
-                if isinstance(value, str):
+                elif isinstance(value, str):
                     value = value.strip().title()
                 params.append(value)
-            params.append(date_update)
-            self.db.cur.execute('INSERT INTO investigators (name, date_birth, contract, scopus_id, date_update) VALUES (%s, %s, %s, %s, %s)', params)
-            self.db.conn.commit()
+            #inv_aliases is not present in excel
+            params.append([])
+            params.append(update_date)
+            params.append(self.year)
+            self.db.cur.execute(sql_fields + sql_values, params)
+        self.db.conn.commit()
         self.st.experimental_rerun()
     
+    def get_all_from_db(self, only_scopus = False, add_age = True):
+        cols = ""
+        for col in self.columns:
+            cols += col + ", "
+        if add_age:
+            cols += "FLOOR((DATE_PART('day', now() - date_birth) / 365)::float) as age "
+        else:
+            cols = cols[:-2]
+        sql = "SELECT " + cols + "  FROM investigators WHERE update_year = %s "
+        if only_scopus:
+            sql += " and scopus_id IS NOT NULL "
+        sql += "ORDER BY inv_name "
+        self.db.cur.execute(sql, [self.year])
+        res = self.db.cur.fetchall()
+        return res
 
-    def get_investigators(self):
+    def get_all(self):
         with self.st.spinner():
-            self.db.cur.execute('SELECT name, contract, date_birth, scopus_id, date_update FROM investigators WHERE date_update = (SELECT MAX(date_update) FROM investigators) ')
-            res = self.db.cur.fetchall()
-            df = pd.DataFrame(res, columns=["Nome & Cognome", "Contratto", "Nascita", "SCOPUS", "Aggiornamento"])
-            df["Età"] = None
-            for i, row in df.iterrows():
-                if row["Nascita"] != None:
-                    dt = datetime.date(datetime.now()) - row["Nascita"]
-                    row["Età"] = int(dt.days / 365)
-                df.iloc[i] = row
-            df_grid = df[["Nome & Cognome", "Contratto", "Età", "SCOPUS"]].set_index('Nome & Cognome')
+            res = self.get_all_from_db()
+            df = pd.DataFrame(res, columns=self.excel_columns)
+            df_grid = df.drop("Nascita", axis=1).set_index('Nome & Cognome')
             download_excel(self.st, df_grid, "investigators_" + datetime.now().strftime("%Y-%m-%d_%H.%M"))
             self.st.dataframe(df_grid, height=666)

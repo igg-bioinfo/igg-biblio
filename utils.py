@@ -1,3 +1,6 @@
+from datetime import datetime
+import unicodedata
+
 site_name = "IGG Biblio"
 
 def hide_menu(st):
@@ -42,6 +45,9 @@ def get_month(month):
     if month == 'Dec':
         month_int = '12'
     return month_int
+    
+def strip_accents(text):
+    return ''.join(c for c in unicodedata.normalize('NFKD', text) if unicodedata.category(c) != 'Mn')
 
 def download_excel(st, df, file_name):
     import io
@@ -49,6 +55,17 @@ def download_excel(st, df, file_name):
     df.to_excel(towrite, encoding='utf-8', index=False, header=True)
     st.download_button("Scarica in Excel", towrite, file_name + ".xlsx", "text/excel", key='download-excel')
 
-def set_msg_for_update(st, obj):
-    if obj.update_days != None:
-        st.success("E' possibile aggiornare i dati")
+def can_update(st, obj):
+    passed_days = obj.min_days - (0 if obj.update_days == None else obj.update_days) 
+    can_update = obj.update_days == None or passed_days < 1 
+    if can_update:
+        if obj.update_days == None:
+            st.error("Nessun dato presente")
+        else:
+            st.success("E' possibile aggiornare i dati")
+    else:
+        st.warning("E' possibile aggiornare i dati tra " + str(passed_days) + " giorni")
+    return can_update
+
+def select_year(st):
+    return st.selectbox('Anno selezionato:', (datetime.now().year, datetime.now().year - 1))

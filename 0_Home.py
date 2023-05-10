@@ -1,59 +1,60 @@
 import streamlit as st
-from utils import set_title
+from utils import set_title, select_year
 from classes.db_psql import *
 from classes.user import *
 from classes.demo import *
+from classes.scopus import *
 from classes.pubmed import *
+from classes.scival import *
 
 set_title(st)
-days_demo = 3
-days_pubmed = 7
 
 db = DB(st)
 db.connect()
 user = User(st, db)
 if user.login():
 
-    st.markdown("#### Anagrafica ricercatori")
-    demo = Demo(st, db)
+    year = select_year(st)
+
+    st.markdown("#### Anagrafica")
+    st.markdown("###### Ricercatori per l'anno: " + str(year) + "")
+    demo = Demo(st, db, year)
     if demo.get_update_details():
         st.write("Ultimo aggiornamento: **" + str(demo.update_date) + " ("+ str(demo.update_days) + " giorni fa)**")
         st.write("Ricercatori: **" + str(demo.update_count) + "**")
-    else:
-        st.error("Nessun dato presente")
-    if demo.update_date == None or demo.update_days >= days_demo:
-        demo.upload_excel()
-    else:
-        st.warning("E' possibile aggiornare i dati passati " + str(days_demo) + " giorni")
+    demo.upload_excel()
+
+    def set_pubs_row(obj):
+        if obj.get_update_details():
+            st.write("Ultimo aggiornamento: **" + str(obj.update_date) + " ("+ str(obj.update_days) + " giorni fa)**")
+            st.write("Pubblicazioni: **" + str(obj.update_count_pubs) + "**")
+            st.write("Autori per tutte le pubblicazioni: **" + str(obj.update_count_authors) + "**")
+        obj.import_pubs()
 
 
+    st.markdown("---")
+    st.markdown("#### Scopus")
+    st.markdown("###### Pubblicazioni per l'anno: " + str(year) + "")
+    scopus = Scopus(st, db, year)
+    set_pubs_row(scopus)
+
+
+    st.markdown("---")
     st.markdown("#### PubMed")
-    st.markdown("###### Pubblicazioni dell'anno in corso:")
-    pubmed = Pubmed(st, db)
-    if pubmed.get_update_details():
-        st.write("Ultimo aggiornamento: **" + str(pubmed.update_date) + " ("+ str(pubmed.update_days) + " giorni fa)**")
-        st.write("Pubblicazioni: **" + str(pubmed.update_count_pubs) + "**")
-        st.write("Autori per tutte le pubblicazioni: **" + str(pubmed.update_count_authors) + "**")
-    else:
-        st.error("Nessun dato presente")
-    if pubmed.update_date == None or pubmed.update_days >= days_pubmed:
-        pubmed.import_pubs()
-    else:
-        st.warning("E' possibile aggiornare i dati passati " + str(days_pubmed) + " giorni")
+    st.markdown("###### Pubblicazioni per l'anno: " + str(year) + "")
+    pubmed = Pubmed(st, db, True, year)
+    set_pubs_row(pubmed)
 
-    year_prev = datetime.now().year - 1
-    st.markdown("###### Pubblicazioni del " + str(year_prev) + ":")
-    pubmed = Pubmed(st, db, year_prev)
-    if pubmed.get_update_details():
-        st.write("Ultimo aggiornamento: **" + str(pubmed.update_date) + " ("+ str(pubmed.update_days) + " giorni fa)**")
-        st.write("Pubblicazioni: **" + str(pubmed.update_count_pubs) + "**")
-        st.write("Autori per tutte le pubblicazioni: **" + str(pubmed.update_count_authors) + "**")
-    else:
-        st.error("Nessun dato presente")
-    if pubmed.update_date == None or pubmed.update_days >= days_pubmed:
-        pubmed.import_pubs()
-    else:
-        st.warning("E' possibile aggiornare i dati passati " + str(days_pubmed) + " giorni")
+
+    st.markdown("---")
+    st.markdown("#### Albo")
+    st.markdown("###### Ricercatori con H-Index per l'anno: " + str(year) + "")
+    scival = Scival(st, db, year)
+    if scival.get_update_details():
+        st.write("Ultimo aggiornamento: **" + str(scival.update_date) + " ("+ str(scival.update_days) + " giorni fa)**")
+        st.write("Ricercatori con H-Index: **" + str(scival.update_count) + "**")
+    scival.import_metrics()
 
 db.close()
+#   conda activate streamlit
 #   streamlit run 0_Home.py

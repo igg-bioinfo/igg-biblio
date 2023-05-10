@@ -1,3 +1,5 @@
+import pandas as pd
+from datetime import datetime 
 
 class User:
     st = None
@@ -6,6 +8,10 @@ class User:
     name = ""
     user_name = ""
     user_type = ""
+    contract = ""
+    scopus_id = ""
+    age = ""
+    update_date = ""
 
 
     def __init__(self, st, db):
@@ -17,12 +23,24 @@ class User:
             self.name = user['name']
             self.user_name = user['user_name']
             self.user_type = user['user_type']
+            if self.has_access("investigator"):
+                self.get_investigator()
             self.set_logout()
+    
+    def get_investigator(self):
+        self.db.cur.execute("SELECT scopus_id, contract, FLOOR((DATE_PART('day', now() - date_birth) / 365)::float) as age, update_date FROM investigators WHERE inv_name = %s and update_year = %s ",
+                            [self.name, datetime.now().year])
+        res = self.db.cur.fetchone()
+        if res != None:
+            self.scopus_id = res[0] 
+            self.contract = res[1] 
+            self.age = int(res[2])
+            self.update_date = res[3] 
     
     def login(self):
         def check_get_user():
-            self.db.cur.execute('SELECT user_id, user_name, user_type, name FROM users WHERE user_name = %s and user_password = %s',
-                                (self.st.session_state["username"], self.st.session_state["password"]))
+            self.db.cur.execute("SELECT user_id, user_name, user_type, name FROM users WHERE user_name = %s and user_password = %s",
+                                [self.st.session_state["username"], self.st.session_state["password"]])
             res = self.db.cur.fetchone()
             if res != None:
                 del self.st.session_state["username"]
@@ -56,5 +74,21 @@ class User:
         if "logged_user" not in self.st.session_state or self.st.session_state["logged_user"] == None:
             self.st.error("Accesso negato")
             self.st.stop()
+
+    def has_access(self, type):
+        has_access = False
+        if type in self.user_type:
+            has_access = True 
+        return has_access
+
+    def get_pubs(self, year):
+        with self.st.spinner():
+            if self.scopus_id != None and self.scopus_id != "":
+                self.db.cur.execute("select doi, pm_id, title, pub_date from scopus_pubs where author_scopus = %s and update_year = %s ",
+                                [self.scopus_id, year])
+                res = self.db.cur.fetchall()
+                df = pd.DataFrame(res, columns=["DOI", "PUBMED", "Titolo", "Data"])
+                self.st.dataframe(df, height=666)
+            
 
         

@@ -17,6 +17,10 @@ class Pubmed_import:
     def __init__(self, st, year):
         self.st = st
         self.year = year
+    
+
+    def is_error(self):
+        return self.error != None
 
 
     def entrez_request(self, function, params):
@@ -41,10 +45,6 @@ class Pubmed_import:
         return dt
     
 
-    def is_error(self):
-        return self.error != None
-    
-
     def group_ids(self, xml, ids_field):
         grouped_ids = []
         if xml:
@@ -66,8 +66,22 @@ class Pubmed_import:
     def get_pubblication(self, xml):
         pmid = xml.find('MedlineCitation/PMID').text
         issn = xml.find('MedlineCitation/MedlineJournalInfo/ISSNLinking').text if xml.find('MedlineCitation/MedlineJournalInfo/ISSNLinking') != None else '' 
+        doi = None
+        for eloc_id in xml.findall('MedlineCitation/Article/ELocationID'):
+            if eloc_id.get('EIdType') == 'doi':
+                doi = eloc_id.text
+                break
+        if doi == None:
+            for art_id in xml.findall('PubmedData/ArticleIdList/ArticleId'):
+                if art_id.get('IdType') == 'doi':
+                    doi = art_id.text
+                    break
+
         journal = xml.find('MedlineCitation/Article/Journal/Title').text
         title = xml.find('MedlineCitation/Article/ArticleTitle').text
+        if title == None:
+            #regex su <ArticleTitle>*</ArticleTitle>
+            pass
         pdate = self.get_date(xml.find('MedlineCitation/Article/Journal/JournalIssue/PubDate'))
         if pdate == '':
             pdate = self.get_date(xml.find('MedlineCitation/Article/ArticleDate'))
@@ -78,7 +92,7 @@ class Pubmed_import:
                 break
         self.pub_count += 1
 
-        return {"pm_id": pmid, "journal": journal, "issn": issn, "title": title, "pub_date": pdate, "pmc_id": pmcid }
+        return {"pm_id": pmid, "doi": doi, "journal": journal, "issn": issn, "title": title, "pub_date": pdate, "pmc_id": pmcid }
 
 
     def get_authors(self, xml):
@@ -133,7 +147,7 @@ class Pubmed_import:
         return authors
 
 
-    def get_data(self):
+    def get_pubs(self):
         pubs = []
         self.pub_count = 0
         xml_ids = self.entrez_request('esearch', 'db=pubmed&term=*gaslini*[ad]' + str(self.year) + '[dp]&retmax=99999')
