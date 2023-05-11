@@ -1,8 +1,0 @@
-[server]
-port = "8089"
-
-[browser]
-serverAddress = "xtensngs.gaslini.lan"
-
-[theme]
-backgroundColor = "#fff"
