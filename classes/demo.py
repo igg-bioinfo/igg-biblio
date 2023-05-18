@@ -86,15 +86,20 @@ class Demo:
     def get_all_from_db(self, only_scopus = False, add_age = True):
         cols = ""
         for col in self.columns:
-            cols += col + ", "
+            if col == "scopus_id":
+                cols += "CASE WHEN d.scopus_id IS NULL THEN i.scopus_id ELSE d.scopus_id END as scopus, "
+            else:
+                cols += "i." + col + ", "
         if add_age:
-            cols += "FLOOR((DATE_PART('day', now() - date_birth) / 365)::float) as age "
+            cols += age_field + " as age "
         else:
             cols = cols[:-2]
-        sql = "SELECT " + cols + "  FROM investigators WHERE update_year = %s "
+        sql = "SELECT " + cols + "  FROM investigators i "
+        sql += "LEFT OUTER JOIN investigator_details d ON d.inv_name = i.inv_name "
+        sql += "WHERE i.update_year = %s "
         if only_scopus:
-            sql += " and scopus_id IS NOT NULL "
-        sql += "ORDER BY inv_name "
+            sql += " and (i.scopus_id IS NOT NULL or d.scopus_id IS NOT NULL) "
+        sql += "ORDER BY i.inv_name "
         self.db.cur.execute(sql, [self.year])
         res = self.db.cur.fetchall()
         return res
@@ -105,4 +110,4 @@ class Demo:
             df = pd.DataFrame(res, columns=self.excel_columns)
             df_grid = df.drop("Nascita", axis=1).set_index('Nome & Cognome')
             download_excel(self.st, df_grid, "investigators_" + datetime.now().strftime("%Y-%m-%d_%H.%M"))
-            self.st.dataframe(df_grid, height=666)
+            self.st.dataframe(df_grid, height=row_height)

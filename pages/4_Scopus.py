@@ -15,7 +15,7 @@ user.is_logged()
 year = select_year(st)
 
 scopus = Scopus(st, db, year)
-scopus.get_failed_details()
+scopus.get_failed_details("by_year")
 if scopus.get_update_details():
     st.write("Ultimo aggiornamento: **" + str(scopus.update_date) + " ("+ str(scopus.update_days) + " giorni fa)**")
     st.write("Pubblicazioni: **" + str(scopus.update_count_pubs) + "**")

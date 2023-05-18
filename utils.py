@@ -2,6 +2,9 @@ from datetime import datetime
 import unicodedata
 
 site_name = "IGG Biblio"
+age_field = "FLOOR((DATE_PART('day', now() - i.date_birth) / 365)::float)"
+row_height = 666
+
 
 def hide_menu(st):
     hide_menu_style = """
@@ -11,13 +14,15 @@ def hide_menu(st):
             """
     st.markdown(hide_menu_style, unsafe_allow_html=True)
 
+
 def set_title(st, title=""):
     st.set_page_config(page_title = site_name if title == "" else title, layout="centered" if title == "" else "wide")
     if title == "":
         title = site_name
     st.title(title)
     #hide_menu(st)
-    
+
+
 def get_month(month):
     month_int = month
     if month == 'Jan':
@@ -45,15 +50,18 @@ def get_month(month):
     if month == 'Dec':
         month_int = '12'
     return month_int
-    
+
+
 def strip_accents(text):
     return ''.join(c for c in unicodedata.normalize('NFKD', text) if unicodedata.category(c) != 'Mn')
+
 
 def download_excel(st, df, file_name):
     import io
     towrite = io.BytesIO()
-    df.to_excel(towrite, encoding='utf-8', index=False, header=True)
+    df.to_excel(towrite, index=False, header=True) # encoding='utf-8'
     st.download_button("Scarica in Excel", towrite, file_name + ".xlsx", "text/excel", key='download-excel')
+
 
 def can_update(st, obj):
     passed_days = obj.min_days - (0 if obj.update_days == None else obj.update_days) 
@@ -67,5 +75,14 @@ def can_update(st, obj):
         st.warning("E' possibile aggiornare i dati tra " + str(passed_days) + " giorni")
     return can_update
 
-def select_year(st):
-    return st.selectbox('Anno selezionato:', (datetime.now().year, datetime.now().year - 1))
+
+all_years = "Intera carriera"
+def select_year(st, all: bool = False, label: str = "Anno selezionato:"):
+    years = [datetime.now().year, datetime.now().year - 1]
+    if all:
+        years[0:0] = [all_years]
+    return st.selectbox('Anno selezionato:', years)
+
+
+def set_prop(st, label: str, value: any):
+    st.write(label + ": **" + (str(value) if value else "Non disponibile") + "**")

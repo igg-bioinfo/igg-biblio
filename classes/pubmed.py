@@ -67,7 +67,7 @@ class Pubmed:
                 return True
         return False
     
-    def import_pubs(self):
+    def import_pubs_by_year(self):
         if can_update(self.st, self) and self.st.button("Importa le pubblicazioni e relativi autori", key="pubmed_pubs_" + str(self.year)):
             with self.st.spinner():
                 update_date = datetime.date(datetime.now())
