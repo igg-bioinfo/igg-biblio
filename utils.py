@@ -16,7 +16,7 @@ def hide_menu(st):
 
 
 def set_title(st, title=""):
-    st.set_page_config(page_title = site_name if title == "" else title, layout="centered" if title == "" else "wide")
+    st.set_page_config(page_title = site_name if title == "" else title, layout="centered" if title == "" else "wide", page_icon=":newspaper:")
     if title == "":
         title = site_name
     st.title(title)
@@ -85,4 +85,21 @@ def select_year(st, all: bool = False, label: str = "Anno selezionato:"):
 
 
 def set_prop(st, label: str, value: any):
-    st.write(label + ": **" + (str(value) if value else "Non disponibile") + "**")
+    st.write(label + ": **" + (str(value) if value == 0 or value else "Non disponibile") + "**")
+
+
+def calculate_email(author):
+    author_email = ""
+    author_array = str(author).lower().split(" ")
+    if len(author_array) > 2:
+        if len(author_array[0]) > 3:
+            author_email = author_array[1] + author_array[0]
+        else:
+            author_email = author_array[2] + author_array[0] + author_array[1]
+    elif len(author_array) > 1:
+        author_email = author_array[1] + author_array[0]
+    else:
+        author_email = author_array[0]
+    author_email += "@gaslini.org"
+    author_email = strip_accents(author_email)
+    return author_email

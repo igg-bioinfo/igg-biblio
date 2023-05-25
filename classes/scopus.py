@@ -6,16 +6,18 @@ from utils import *
 import json
 
 class Scopus:
-    columns = ["doi", "pm_id", "issn", "title", "pub_date", "pub_type", "cited", "author_name", "author_scopus"]
+    columns = ["eid", "doi", "pm_id", "issn", "title", "pub_date", "pub_type", "cited", "author_name", "author_scopus"]
     metrics_columns = ["hindex", "pubs", "allcited", "hindex5", "pubs5", "allcited5"]
-    excel_columns = ["DOI", "PubMed", "ISSN", "Titolo", "Data", "Tipo", "Cit.", "Autore", "SCOPUS"]
+    excel_columns = ["EID", "DOI", "PubMed", "ISSN", "Titolo", "Data", "Tipo", "Cit.", "Autore", "SCOPUS"]
     is_gaslini = None
     year = 0
     update_date = None
     update_days = None
     update_count_pubs = None
     update_count_authors = None
-    min_days = 0
+    metrics_update = []
+    min_days = 20
+    max_pucs = 100
 
 
     #-----------------------------------GENERALI
@@ -71,9 +73,10 @@ class Scopus:
         old_author_scopus = ""
         pubs = []
         author_pubs = None
-        index = 1
+        progress_bar = self.st.progress(0,  text="Aggiornamento del database")
+        percent_total = len(authors_pubs)
+        i = 1
         for author_pubs in authors_pubs:
-            index += 1
             params = []
             sql_fields = "INSERT INTO " + table + " ("
             sql_values = ") VALUES ("
@@ -90,20 +93,26 @@ class Scopus:
             params.append(self.year)
             sql_fields += "update_date, update_year"
             sql_values += "%s, %s)"
-            self.st.success(sql_fields + sql_values)
             self.db.cur.execute(sql_fields + sql_values, params)
             self.db.cur.execute("DELETE FROM scopus_failed WHERE scopus_type = %s and update_year = %s and author_scopus = %s", 
                                 [scopus_type, self.year, author_pubs["author_scopus"]])
+            text = "Aggiornamento dati per " + author_pubs["author_name"]
+            progress_bar.progress(i / percent_total, text=text)
             if is_all:
                 if old_author_scopus not in ["", author_pubs["author_scopus"]]:
                     self.set_metrics(old_author_scopus, pubs, update_date)
+                    text = "Aggiornamento metriche per " + author_pubs["author_name"]
+                    progress_bar.progress(i / percent_total, text=text)
                     pubs = []
                 old_author_scopus = author_pubs["author_scopus"]
                 pubs.append(author_pubs)
             
             self.db.conn.commit()
+            i += 1
         if is_all and len(pubs) > 0:
             self.set_metrics(old_author_scopus, pubs, update_date)
+            text = "Aggiornamento metriche per " + author_pubs["author_name"]
+            progress_bar.progress((i - 1) / percent_total, text=text)
             self.db.conn.commit()
         if importer.is_error():
             self.st.error(importer.error)
@@ -161,14 +170,16 @@ class Scopus:
     #-----------------------------------METRICHE
     def get_metrics_update_details(self):
         with self.st.spinner():
-            sql = "SELECT update_date, COUNT(metric_id) FROM scopus_metrics WHERE "
-            sql += "update_year = %s GROUP BY update_date "
+            sql = "SELECT update_date, COUNT(metric_id) FROM scopus_metrics "
+            sql += "WHERE update_year = %s GROUP BY update_date ORDER BY update_date DESC"
             self.db.cur.execute(sql, [self.year])
             res = self.db.cur.fetchall()
             df = pd.DataFrame(res, columns=["update", "metrics"])
+            self.metrics_update = []
+            for i, row in df.iterrows():
+                self.metrics_update.append({"update": row["update"], "metrics": row["metrics"]})
             if len(df) > 0:
                 self.update_date = df["update"][0]
-                self.update_count = df["metrics"][0]
                 dt = datetime.date(datetime.now()) - self.update_date
                 self.update_days = dt.days
                 return True
@@ -239,30 +250,49 @@ class Scopus:
                                   update_date, self.year, author_scopus, self.year])
 
 
+    #-----------------------------------PUC
+    def import_pucs(self, scopus = None):
+        params = [self.year]
+        sql = "SELECT eid "
+        sql += "FROM scopus_pubs_all "
+        sql += "WHERE update_year = %s "
+        if scopus != None:
+            sql += " and author_scopus = %s "
+            params.append(scopus)
+        sql += "and eid NOT IN (SELECT DISTINCT eid FROM scopus_pucs) LIMIT " + str(self.max_pucs)
+        self.db.cur.execute(sql, params)
+        res = self.db.cur.fetchall()
+        if res:
+            fields = ""
+            values = ""
+            for f in range(1, 3):
+                fields += "first" + str(f) + ", last" + str(f) + ", "
+                values += "%s, %s, "
+            for f in range(1, 5):
+                fields += "corr" + str(f) + ", "
+                values += "%s, "
+            sql = "INSERT INTO scopus_pucs (eid, " + fields + " pub_year) "
+            sql += "SELECT %s, " + values + " %s "
+            importer = Scopus_import(self.st, self.year)
+            for r in res:
+                puc = importer.get_puc(r[0])
+                params = [puc["eid"]]
+                for f in range(1, 3):
+                    params.append(puc["first" + str(f)])
+                    params.append(puc["last" + str(f)])
+                for f in range(1, 5):
+                    params.append(puc["corr" + str(f)])
+                params.append(puc["pub_year"])
+                self.db.cur.execute(sql, params)
+                self.db.conn.commit()
+
+
+
     #-----------------------------------ALBO
-    def calculate_email(self, author):
-        author_email = ""
-        author_array = str(author).lower().split(" ")
-        if len(author_array) > 2:
-            if len(author_array[0]) > 3:
-                author_email = author_array[1] + author_array[0]
-            else:
-                author_email = author_array[2] + author_array[0] + author_array[1]
-        elif len(author_array) > 1:
-            author_email = author_array[1] + author_array[0]
-        else:
-            author_email = author_array[0]
-        author_email += "@gaslini.org"
-        author_email = strip_accents(author_email)
-        return author_email
-    
     def get_albo(self, only_scopus: bool = True):
         with self.st.spinner():
             sql = "SELECT i.inv_name, i.contract, " + age_field + ", CASE WHEN d.scopus_id IS NULL THEN i.scopus_id ELSE d.scopus_id END as scopus, "
             sql += (", ".join(self.metrics_columns)) + " "
-            #sql += ", CASE WHEN hindex > 25 THEN 1 ELSE 0 END as PI "
-            #sql += ", CASE WHEN hindex > 15 THEN 1 ELSE 0 END as CoPI "
-            #sql += ", CASE WHEN " + age_field + " < 40 THEN 1 ELSE 0 END as Under40 "
             sql += "FROM investigators i "
             sql += "LEFT OUTER JOIN investigator_details d ON d.inv_name = i.inv_name "
             sql += "LEFT OUTER JOIN scopus_metrics ON (d.scopus_id IS NULL and author_scopus = i.scopus_id) or (d.scopus_id IS NOT NULL and author_scopus = d.scopus_id) "
@@ -272,11 +302,11 @@ class Scopus:
             sql += "ORDER BY (i.scopus_id IS NOT NULL or d.scopus_id IS NOT NULL), hindex is null, hindex DESC, " + age_field + " ASC, i.inv_name ASC"
             self.db.cur.execute(sql, [self.year])
             res = self.db.cur.fetchall()
-            albo_columns = ["Autore", "Contratto", "Età", "SCOPUS ID", "H-Index", "Pubs", "Cit.", "H-Index 5anni", "Pubs 5anni", "Cit. 5anni"]
+            albo_columns = ["Autore", "Contratto", "Età", "SCOPUS ID", "H-Index", "Pubs", "Cit.", "H-Index 5 anni", "Pubs 5 anni", "Cit. 5 anni"]
             df = pd.DataFrame(res, columns=albo_columns)
             df["Email"] = ""
             for i, row in df.iterrows():
-                df.loc[i, "Email"] = self.calculate_email(row["Autore"])
+                df.loc[i, "Email"] = calculate_email(row["Autore"])
 
             download_excel(self.st, df, "albo_" + datetime.now().strftime("%Y-%m-%d_%H.%M"))
             self.st.dataframe(df, height=row_height)

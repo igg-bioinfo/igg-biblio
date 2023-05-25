@@ -5,7 +5,6 @@ from classes.user import *
 from classes.demo import *
 from classes.scopus import *
 from classes.pubmed import *
-from classes.scival import *
 
 set_title(st)
 
@@ -38,9 +37,11 @@ if user.login():
     scopus_albo = Scopus(st, db, year)
     if scopus_albo.get_metrics_update_details():
         st.write("Ultimo aggiornamento: **" + str(scopus_albo.update_date) + " ("+ str(scopus_albo.update_days) + " giorni fa)**")
-        st.write("Ricercatori con SCOPUS ID: **" + str(scopus_albo.update_count) + "**")
-        if is_admin:
-            scopus_albo.import_metrics()
+        for updates in scopus_albo.metrics_update:
+            st.write("Ricercatori con metriche aggiornate al " + str(updates["update"]) + ": **" + str(updates["metrics"]) + "**")
+    if is_admin:
+        scopus_albo.import_metrics()
+    #scopus_albo.import_pucs()
 
 
     st.markdown("---")
@@ -57,3 +58,5 @@ if user.login():
 db.close()
 #   conda activate streamlit
 #   streamlit run 0_Home.py
+#   sudo systemctl start biblio.service
+#   sudo systemctl stop biblio.service

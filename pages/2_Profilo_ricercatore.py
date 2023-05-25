@@ -40,25 +40,38 @@ if investigator:
     st.markdown("---")
 
     st.markdown("#### Metriche")
-    year = datetime.now().year
-    investigator.get_metrics(year)
-    col_all, col_5years = st.columns([1,3])
+    year_current = datetime.now().year
+    investigator.get_metrics(year_current)
+    has_all_pucs = investigator.check_pucs(year_current)
+    if has_all_pucs:
+        investigator.get_pucs(year_current)
+    col_all, col_5years = st.columns([1,4])
     with col_all:
         st.write("**Totale**")
         set_prop(st, "H-index", investigator.hindex)
         set_prop(st, "Pubblicazioni", investigator.n_pubs)
         set_prop(st, "Citazioni", investigator.all_cited)
+        set_prop(st, "PUC", investigator.pucs if has_all_pucs else None)
     with col_5years:
         st.write("**Ultimi 5 anni**")
         set_prop(st, "H-index", investigator.hindex5)
         set_prop(st, "Pubblicazioni", investigator.n_pubs5)
         set_prop(st, "Citazioni", investigator.all_cited5)
+        set_prop(st, "PUC", investigator.pucs5 if has_all_pucs else None)
+
     if investigator.scopus_id:
+        scopus = Scopus(st, db, year_current)
         if st.button("Aggiorna pubblicazioni e metriche", key="scopus_details_all"):
             with st.spinner():
-                scopus = Scopus(st, db, year)
                 scopus.import_pubs(True, investigator.scopus_id)
                 st.experimental_rerun()
+        if is_admin and investigator.n_pubs and investigator.n_pubs > 0:
+            if has_all_pucs == False:
+                bt_text = "Recupera i PUC per le " + str(investigator.pucs_missing) + " pubblicazioni mancanti "
+                bt_text += "(max. " + str(scopus.max_pucs) + " alla volta)"
+                if st.button(bt_text, key="scopus_pucs"):
+                    scopus.import_pucs(investigator.scopus_id)
+
     else:
         st.error("Scopus id non presente")
     st.markdown("---")
