@@ -18,7 +18,8 @@ year = select_year(st)
 scopus = Scopus(st, db, year)
 if scopus.get_metrics_update_details():
     st.write("Ultimo aggiornamento: **" + str(scopus.update_date) + " ("+ str(scopus.update_days) + " giorni fa)**")
-    st.write("Ricercatori con SCOPUS ID: **" + str(scopus.update_count) + "**")
+    for updates in scopus.metrics_update:
+        st.write("Ricercatori con metriche aggiornate al " + str(updates["update"]) + ": **" + str(updates["metrics"]) + "**")
     scopus.get_albo()
 else:
     st.error("Nessun dato presente")

@@ -285,13 +285,18 @@ class Scopus:
                 params.append(puc["pub_year"])
                 self.db.cur.execute(sql, params)
                 self.db.conn.commit()
+        self.st.experimental_rerun()
 
 
 
     #-----------------------------------ALBO
     def get_albo(self, only_scopus: bool = True):
         with self.st.spinner():
-            sql = "SELECT i.inv_name, i.contract, " + age_field + ", CASE WHEN d.scopus_id IS NULL THEN i.scopus_id ELSE d.scopus_id END as scopus, "
+            sql = "" #, COUNT(l.eid) as lasts, COUNT(c.eid) as corrs
+            sql += "SELECT l.*, COUNT(c.eid) as corrs FROM ( "
+            sql += "SELECT f.*, COUNT(l.eid) as lasts FROM ( "
+            sql += "SELECT s.*, COUNT(f.eid) as firsts FROM ( "
+            sql += "SELECT i.inv_name, i.contract, " + age_field + " as age, CASE WHEN d.scopus_id IS NULL THEN i.scopus_id ELSE d.scopus_id END as scopus, "
             sql += (", ".join(self.metrics_columns)) + " "
             sql += "FROM investigators i "
             sql += "LEFT OUTER JOIN investigator_details d ON d.inv_name = i.inv_name "
@@ -299,10 +304,20 @@ class Scopus:
             sql += "WHERE i.update_year = %s "
             if only_scopus:
                 sql += " and (i.scopus_id IS NOT NULL or d.scopus_id IS NOT NULL) "
-            sql += "ORDER BY (i.scopus_id IS NOT NULL or d.scopus_id IS NOT NULL), hindex is null, hindex DESC, " + age_field + " ASC, i.inv_name ASC"
+            sql += ") s "
+            sql += "left outer join scopus_pucs f on (s.scopus = f.first1 or s.scopus = f.first2 or s.scopus = f.first3) "
+            sql += "GROUP BY inv_name, contract, age, scopus, " + (", ".join(self.metrics_columns)) + " "
+            sql += ") f  "
+            sql += "left outer join scopus_pucs l on (f.scopus = l.last1 or f.scopus = l.last2 or f.scopus = l.last3) "
+            sql += "GROUP BY inv_name, contract, age, scopus, " + (", ".join(self.metrics_columns)) + ", firsts "
+            sql += ") l  "
+            sql += "left outer join scopus_pucs c on (l.scopus = c.corr1 or l.scopus = c.corr2 or l.scopus = c.corr3 or l.scopus = c.corr4 or l.scopus = c.corr5) "
+            sql += "GROUP BY inv_name, contract, age, scopus, " + (", ".join(self.metrics_columns)) + ", firsts, lasts "
+            sql += "ORDER BY hindex is null, hindex DESC, age ASC, inv_name ASC "
+            #self.st.success(sql)
             self.db.cur.execute(sql, [self.year])
             res = self.db.cur.fetchall()
-            albo_columns = ["Autore", "Contratto", "Età", "SCOPUS ID", "H-Index", "Pubs", "Cit.", "H-Index 5 anni", "Pubs 5 anni", "Cit. 5 anni"]
+            albo_columns = ["Autore", "Contratto", "Età", "SCOPUS ID", "H-Index", "Pubs", "Cit.", "H-Index 5 anni", "Pubs 5 anni", "Cit. 5 anni", "Primi", "Ultimi", "Corr."]
             df = pd.DataFrame(res, columns=albo_columns)
             df["Email"] = ""
             for i, row in df.iterrows():
