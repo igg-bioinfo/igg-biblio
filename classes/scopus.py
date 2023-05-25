@@ -292,7 +292,7 @@ class Scopus:
     #-----------------------------------ALBO
     def get_albo(self, only_scopus: bool = True):
         with self.st.spinner():
-            sql = "" #, COUNT(l.eid) as lasts, COUNT(c.eid) as corrs
+            sql = ""
             sql += "SELECT l.*, COUNT(c.eid) as corrs FROM ( "
             sql += "SELECT f.*, COUNT(l.eid) as lasts FROM ( "
             sql += "SELECT s.*, COUNT(f.eid) as firsts FROM ( "

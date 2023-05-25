@@ -192,15 +192,21 @@ class User:
     def get_pucs(self, year):
         self.pucs = ""
         self.pucs5 = ""
-        sql = "SELECT s.scopus, s.pub_year, COUNT(f.eid) AS firsts, COUNT(l.eid) AS lasts, COUNT(c.eid) AS corrs "
-        sql += "FROM ( "
+        sql = ""
+        sql += "SELECT l.*, COUNT(c.eid) as corrs FROM ( "
+        sql += "SELECT f.*, COUNT(l.eid) as lasts FROM ( "
+        sql += "SELECT s.*, COUNT(f.eid) as firsts FROM ( "
         sql += "SELECT DISTINCT author_scopus AS scopus, EXTRACT('Year' from TO_DATE(pub_date,'YYYY-MM-DD')) as pub_year "
         sql += "FROM scopus_pubs_all WHERE author_scopus = %s "
         sql += ") s "
         sql += "left outer join scopus_pucs f on s.pub_year = f.pub_year and (s.scopus = f.first1 or s.scopus = f.first2 or s.scopus = f.first3)"
-        sql += "left outer join scopus_pucs l on s.pub_year = l.pub_year and (s.scopus = l.last1 or s.scopus = l.last2 or s.scopus = l.last3)"
-        sql += "left outer join scopus_pucs c on s.pub_year = c.pub_year and (s.scopus = c.corr1 or s.scopus = c.corr2 or s.scopus = c.corr3 or s.scopus = c.corr4 or s.scopus = c.corr5)"
         sql += "GROUP BY s.scopus, s.pub_year"
+        sql += ") f "
+        sql += "left outer join scopus_pucs l on f.pub_year = l.pub_year and (f.scopus = l.last1 or f.scopus = l.last2 or f.scopus = l.last3)"
+        sql += "GROUP BY f.scopus, f.pub_year, firsts "
+        sql += ") l "
+        sql += "left outer join scopus_pucs c on l.pub_year = c.pub_year and (l.scopus = c.corr1 or l.scopus = c.corr2 or l.scopus = c.corr3 or l.scopus = c.corr4 or l.scopus = c.corr5)"
+        sql += "GROUP BY l.scopus, l.pub_year, firsts, lasts "
         params = [self.scopus_id]
         self.db.cur.execute(sql, params)
         res = self.db.cur.fetchall()
@@ -213,13 +219,13 @@ class User:
         corrs5 = 0
         for r in res:
             if self.get_condition(year, r[1], True):
-                firsts += r[2]
-                lasts += r[3]
-                corrs += r[4]
+                firsts += int(r[2])
+                lasts += int(r[3])
+                corrs += int(r[4])
             if self.get_condition(year, r[1], False):
-                firsts5 += r[2]
-                lasts5 += r[3]
-                corrs5 += r[4]
+                firsts5 += int(r[2])
+                lasts5 += int(r[3])
+                corrs5 += int(r[4])
         self.pucs = str(firsts) + " - " + str(lasts) + " - " + str(corrs)
         self.pucs5 = str(firsts5) + " - " + str(lasts5) + " - " + str(corrs5)
 
