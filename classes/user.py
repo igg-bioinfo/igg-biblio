@@ -144,16 +144,25 @@ class User:
     def get_pubs(self, year):
         with self.st.spinner():
             if self.scopus_id != None and self.scopus_id != "":
-                sql = "select eid, doi, pm_id, title, pub_date, cited from "
-                if year == all_years:
-                    self.db.cur.execute(sql + "scopus_pubs_all where author_scopus = %s ORDER BY pub_date DESC",
-                                    [self.scopus_id])
-                else:
-                    self.db.cur.execute(sql + "scopus_pubs where author_scopus = %s and update_year = %s ORDER BY pub_date DESC",
-                                    [self.scopus_id, year])
+                params = [self.scopus_id, self.scopus_id, self.scopus_id, 
+                          self.scopus_id, self.scopus_id, self.scopus_id, 
+                          self.scopus_id, self.scopus_id, self.scopus_id, self.scopus_id, self.scopus_id,
+                          self.scopus_id]
+                sql = "select s.eid, s.doi, s.pm_id, s.title, s.pub_date, s.cited, "
+                sql += "CASE WHEN p.first1 = %s or p.first2 = %s or p.first3 = %s THEN 'Si' ELSE 'No' END as Primo, "
+                sql += "CASE WHEN p.last1 = %s or p.last2 = %s or p.last3 = %s THEN 'Si' ELSE 'No' END as Ultimo, "
+                sql += "CASE WHEN p.corr1 = %s or p.corr2 = %s or p.corr3 = %s or p.corr4 = %s or p.corr5 = %s THEN 'Si' ELSE 'No' END as Corr "
+                sql += "FROM scopus_pubs" + ("_all" if year == all_years else "") + " s "
+                sql += "LEFT OUTER JOIN scopus_pucs p ON p.eid = s.eid "
+                sql += "WHERE author_scopus = %s "
+                if year != all_years:
+                    sql += "and update_year = %s "
+                    params.append(year)
+                sql += "ORDER BY pub_date DESC"
+                self.db.cur.execute(sql, params)
                 res = self.db.cur.fetchall()
-                df = pd.DataFrame(res, columns=["EID", "DOI", "PUBMED ID", "Titolo pubblicazione", "Data", "Citazioni "])
-                df.set_index('DOI', inplace=True)
+                df = pd.DataFrame(res, columns=["EID", "DOI", "PUBMED ID", "Titolo pubblicazione", "Data", "Cit.", "Primo", "Ultimo", "Corr."])
+                df.set_index('EID', inplace=True)
                 download_excel(self.st, df, "scopus_pubs_" + self.scopus_id + "_" + str(year) + "_" + datetime.now().strftime("%Y-%m-%d_%H.%M"))
                 self.st.write(str(len(df)) + " Righe")
                 self.st.dataframe(df, height=row_height)
@@ -189,6 +198,7 @@ class User:
         last_5years = year - 5
         return (pub_year <= year) if is_all else (pub_year <= year and pub_year >= last_5years)
     
+
     def get_pucs(self, year):
         self.pucs = ""
         self.pucs5 = ""

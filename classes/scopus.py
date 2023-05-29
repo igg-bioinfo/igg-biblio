@@ -7,7 +7,7 @@ import json
 
 class Scopus:
     columns = ["eid", "doi", "pm_id", "issn", "title", "pub_date", "pub_type", "cited", "author_name", "author_scopus"]
-    metrics_columns = ["hindex", "pubs", "allcited", "hindex5", "pubs5", "allcited5"]
+    metrics_columns = ["pubs", "allcited", "hindex", "pubs5", "allcited5", "hindex5"]
     excel_columns = ["EID", "DOI", "PubMed", "ISSN", "Titolo", "Data", "Tipo", "Cit.", "Autore", "SCOPUS"]
     is_gaslini = None
     year = 0
@@ -153,8 +153,8 @@ class Scopus:
             for col in self.columns:
                 cols += col + ", "
             cols = cols[:-2]
-            sql = "SELECT " + cols + " FROM scopus_pubs WHERE "
-            sql += "update_year = %s "
+            sql = "SELECT " + cols + " FROM scopus_pubs  "
+            sql += "WHERE update_year = %s "
             if self.is_gaslini:
                 sql += "AND is_gaslini = true "
             sql += "ORDER BY doi, pm_id "
@@ -297,27 +297,30 @@ class Scopus:
             sql += "SELECT f.*, COUNT(l.eid) as lasts FROM ( "
             sql += "SELECT s.*, COUNT(f.eid) as firsts FROM ( "
             sql += "SELECT i.inv_name, i.contract, " + age_field + " as age, CASE WHEN d.scopus_id IS NULL THEN i.scopus_id ELSE d.scopus_id END as scopus, "
-            sql += (", ".join(self.metrics_columns)) + " "
+            sql += (", ".join(self.metrics_columns)) + ", "
+            sql += "(CASE WHEN pubs - (CASE WHEN pubs_puc IS NULL THEN 0 ELSE pubs_puc END) > 0 THEN (CASE WHEN pubs_puc IS NULL THEN 0 ELSE pubs_puc END)::text ELSE (CASE WHEN pubs IS NULL OR pubs = 0 THEN 'Nessun dato' ELSE 'OK' END) END) as puc "
             sql += "FROM investigators i "
             sql += "LEFT OUTER JOIN investigator_details d ON d.inv_name = i.inv_name "
-            sql += "LEFT OUTER JOIN scopus_metrics ON (d.scopus_id IS NULL and author_scopus = i.scopus_id) or (d.scopus_id IS NOT NULL and author_scopus = d.scopus_id) "
+            sql += "LEFT OUTER JOIN scopus_metrics m ON (d.scopus_id IS NULL and m.author_scopus = i.scopus_id) or (d.scopus_id IS NOT NULL and m.author_scopus = d.scopus_id) "
+            sql += "LEFT OUTER JOIN (select author_scopus, count(eid) as pubs_puc from scopus_pubs_all WHERE update_year = %s and eid IN (SELECT DISTINCT eid FROM scopus_pucs) group by author_scopus) p "
+            sql += "ON (d.scopus_id IS NULL and p.author_scopus = i.scopus_id) or (d.scopus_id IS NOT NULL and p.author_scopus = d.scopus_id) "
             sql += "WHERE i.update_year = %s "
             if only_scopus:
                 sql += " and (i.scopus_id IS NOT NULL or d.scopus_id IS NOT NULL) "
             sql += ") s "
-            sql += "left outer join scopus_pucs f on (s.scopus = f.first1 or s.scopus = f.first2 or s.scopus = f.first3) "
-            sql += "GROUP BY inv_name, contract, age, scopus, " + (", ".join(self.metrics_columns)) + " "
-            sql += ") f  "
-            sql += "left outer join scopus_pucs l on (f.scopus = l.last1 or f.scopus = l.last2 or f.scopus = l.last3) "
-            sql += "GROUP BY inv_name, contract, age, scopus, " + (", ".join(self.metrics_columns)) + ", firsts "
-            sql += ") l  "
-            sql += "left outer join scopus_pucs c on (l.scopus = c.corr1 or l.scopus = c.corr2 or l.scopus = c.corr3 or l.scopus = c.corr4 or l.scopus = c.corr5) "
-            sql += "GROUP BY inv_name, contract, age, scopus, " + (", ".join(self.metrics_columns)) + ", firsts, lasts "
+            sql += "LEFT OUTER JOIN scopus_pucs f on (s.scopus = f.first1 or s.scopus = f.first2 or s.scopus = f.first3) "
+            sql += "GROUP BY inv_name, contract, age, scopus, " + (", ".join(self.metrics_columns)) + ", puc "
+            sql += ") f "
+            sql += "LEFT OUTER JOIN scopus_pucs l on (f.scopus = l.last1 or f.scopus = l.last2 or f.scopus = l.last3) "
+            sql += "GROUP BY inv_name, contract, age, scopus, " + (", ".join(self.metrics_columns)) + ", puc, firsts "
+            sql += ") l "
+            sql += "LEFT OUTER JOIN scopus_pucs c on (l.scopus = c.corr1 or l.scopus = c.corr2 or l.scopus = c.corr3 or l.scopus = c.corr4 or l.scopus = c.corr5) "
+            sql += "GROUP BY inv_name, contract, age, scopus, " + (", ".join(self.metrics_columns)) + ", puc, firsts, lasts "
             sql += "ORDER BY hindex is null, hindex DESC, age ASC, inv_name ASC "
             #self.st.success(sql)
-            self.db.cur.execute(sql, [self.year])
+            self.db.cur.execute(sql, [self.year, self.year])
             res = self.db.cur.fetchall()
-            albo_columns = ["Autore", "Contratto", "Età", "SCOPUS ID", "H-Index", "Pubs", "Cit.", "H-Index 5 anni", "Pubs 5 anni", "Cit. 5 anni", "Primi", "Ultimi", "Corr."]
+            albo_columns = ["Autore", "Contratto", "Età", "SCOPUS ID", "Pubs", "Cit.", "H-Index", "Pubs 5 anni", "Cit. 5 anni", "H-Index 5 anni", "Pubs con PUC", "Primi", "Ultimi", "Corr."]
             df = pd.DataFrame(res, columns=albo_columns)
             df["Email"] = ""
             for i, row in df.iterrows():
