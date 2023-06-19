@@ -40,7 +40,7 @@ class Scopus_import:
 
 
     #-----------------------------------PUBBLICAZIONI
-    def get_pubs(self, author_name: str, author_scopus: str, filter: str = "", start: int = 0):
+    def get_pubs_for_range(self, author_name: str, author_scopus: str, filter: str = "", start: int = 0):
         params = "query=AU-ID(" + author_scopus + ")" + filter
         inv_pubs = self.elsevier_request("search/scopus", params, start)
         if inv_pubs == False:
@@ -89,14 +89,14 @@ class Scopus_import:
             progress_bar.progress((i + 1) / percent_total, text=text)
             
             pubs = []
-            res = self.get_pubs(author_name, author_scopus, filter, 0)
+            res = self.get_pubs_for_range(author_name, author_scopus, filter, 0)
             if res:
                 for pub in res[0]:
                     pubs.append(pub)
                 restart = res[1] 
                 total = res[2]
                 while restart < total:
-                    res = self.get_pubs(author_name, author_scopus, filter, restart)
+                    res = self.get_pubs_for_range(author_name, author_scopus, filter, restart)
                     if res:
                         for pub in res[0]:
                             pubs.append(pub)
@@ -159,6 +159,69 @@ class Scopus_import:
                         puc["corr" + str(f)] = a["@auid"]
                         f += 1
         return puc
+
+
+
+    #-----------------------------------AUTORI
+    def get_authors_for_range(self, start: int = 0):
+        params = "query=af-id(60016041)"
+        invs = self.elsevier_request("search/author", params, start)
+        if invs == False:
+            self.st.error("La richiesta per la ricerca degli autori non in anagrafica ha prodotto il seguente errore:")
+            self.st.error(self.error)
+            self.error = None
+            return False
+        if "search-results" not in invs or "entry" not in invs["search-results"]:
+            self.st.error("La richiesta per la ricerca degli autori non in anagrafica non ha prodotto nessun risultato!")
+            return False
+        invs_total = 0 if "opensearch:totalResults" not in invs["search-results"] else int(invs["search-results"]["opensearch:totalResults"])
+        invs_count = len(invs["search-results"]["entry"])
+        authors = []
+        for inv in invs["search-results"]["entry"]:    
+            if "preferred-name" in inv and "dc:identifier" in inv:
+                inv_dict = {}
+                inv_dict["scopus_inv_id"] = str(inv["dc:identifier"]).replace("AUTHOR_ID:", "")
+                inv_dict["inv_name"] = inv["preferred-name"]["given-name"] if "given-name" in inv["preferred-name"] else None
+                inv_dict["inv_surname"] = inv["preferred-name"]["surname"] if "surname" in inv["preferred-name"] else None
+                areas = []
+                if "subject-area" in inv:
+                    for area in inv["subject-area"]: 
+                        if "@abbrev" in area and area != "@abbrev": 
+                            areas.append(area["@abbrev"])
+                inv_dict["inv_areas"] = areas
+                names = []
+                if "name-variant" in inv:
+                    for name in inv["name-variant"]:   
+                        full_name = ""
+                        if "surname" in name:
+                            full_name += str(name["surname"]) if name["surname"] is not None else ""
+                        if "given-name" in name:
+                            full_name += " " + str(name["given-name"]) if name["given-name"] is not None else ""
+                        if full_name != "":
+                            names.append(full_name)
+                inv_dict["inv_names"] = names
+                authors.append(inv_dict)
+            else:
+                pass
+        return [authors, start + invs_count, invs_total]
+
+
+    def get_authors(self):
+        authors = []
+        res = self.get_authors_for_range(0)
+        if res:
+            for inv in res[0]:
+                authors.append(inv)
+            restart = res[1] 
+            total = res[2]
+            while restart < total:
+                res = self.get_authors_for_range(restart)
+                if res:
+                    for inv in res[0]:
+                        authors.append(inv)
+                    restart = res[1] 
+                    total = res[2]   
+        return authors
 
 
 

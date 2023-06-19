@@ -14,6 +14,7 @@ class User:
     orcid_id = ""
     age = ""
     update_date = ""
+    user_confirmed = False
     hindex = None
     n_pubs = None
     all_cited = None
@@ -47,6 +48,7 @@ class User:
         sql = ""
         sql += "SELECT CASE WHEN d.scopus_id IS NULL THEN i.scopus_id ELSE d.scopus_id END as scopus_id, i.contract, " + age_field + " as age, "
         sql += "CASE WHEN d.orcid_id IS NULL THEN '' ELSE d.orcid_id END as orcid_id, "
+        sql += "CASE WHEN d.inv_name IS NULL THEN '0' ELSE '1' END as user_confirmed, "
         sql += "CASE WHEN d.update_date IS NULL THEN i.update_date ELSE d.update_date END as update_date "
         sql += "FROM investigators i "
         sql += "LEFT OUTER JOIN investigator_details d ON d.inv_name = i.inv_name "
@@ -58,7 +60,8 @@ class User:
             self.contract = res[1] 
             self.age = int(res[2])
             self.orcid_id = res[3] 
-            self.update_date = res[4] 
+            self.user_confirmed = res[4] == '1'
+            self.update_date = res[5] 
 
 
     def login(self):
@@ -111,7 +114,13 @@ class User:
 
     #-----------------------------------AGGIORNA IDS
     def save_ids(self, scopus_id, orcid_id):   
-        if self.st.button("Aggiorna gli IDs", key="save_ids"):
+        bt_text = "Conferma gli IDs"
+        if self.user_confirmed:
+            self.st.success("Gli IDs del ricercatore sono stati confermati manualmente")  
+            bt_text = "Aggiorna gli IDs"
+        else:
+            self.st.warning("Controlla e conferma gli IDs")  
+        if self.st.button(bt_text, key="save_ids"):
             with self.st.spinner():
                 update_date = datetime.date(datetime.now())
                 sql = "UPDATE investigator_details SET scopus_id=%s, orcid_id=%s, update_date=%s WHERE inv_name=%s "
@@ -149,9 +158,10 @@ class User:
                           self.scopus_id, self.scopus_id, self.scopus_id, self.scopus_id, self.scopus_id,
                           self.scopus_id]
                 sql = "select s.eid, s.doi, s.pm_id, s.title, s.pub_date, s.cited, "
-                sql += "CASE WHEN p.first1 = %s or p.first2 = %s or p.first3 = %s THEN 'Si' ELSE 'No' END as Primo, "
-                sql += "CASE WHEN p.last1 = %s or p.last2 = %s or p.last3 = %s THEN 'Si' ELSE 'No' END as Ultimo, "
-                sql += "CASE WHEN p.corr1 = %s or p.corr2 = %s or p.corr3 = %s or p.corr4 = %s or p.corr5 = %s THEN 'Si' ELSE 'No' END as Corr "
+                sql += "CASE WHEN p.eid is not null THEN true ELSE false END as PUC, "
+                sql += "CASE WHEN p.first1 = %s or p.first2 = %s or p.first3 = %s THEN true ELSE false END as Primo, "
+                sql += "CASE WHEN p.last1 = %s or p.last2 = %s or p.last3 = %s THEN true ELSE false END as Ultimo, "
+                sql += "CASE WHEN p.corr1 = %s or p.corr2 = %s or p.corr3 = %s or p.corr4 = %s or p.corr5 = %s THEN true ELSE false END as Corr "
                 sql += "FROM scopus_pubs" + ("_all" if year == all_years else "") + " s "
                 sql += "LEFT OUTER JOIN scopus_pucs p ON p.eid = s.eid "
                 sql += "WHERE author_scopus = %s "
@@ -161,7 +171,7 @@ class User:
                 sql += "ORDER BY pub_date DESC"
                 self.db.cur.execute(sql, params)
                 res = self.db.cur.fetchall()
-                df = pd.DataFrame(res, columns=["EID", "DOI", "PUBMED ID", "Titolo pubblicazione", "Data", "Cit.", "Primo", "Ultimo", "Corr."])
+                df = pd.DataFrame(res, columns=["EID", "DOI", "PUBMED ID", "Titolo pubblicazione", "Data", "Cit.", "PUC", "Primo", "Ultimo", "Corr."])
                 df.set_index('EID', inplace=True)
                 download_excel(self.st, df, "scopus_pubs_" + self.scopus_id + "_" + str(year) + "_" + datetime.now().strftime("%Y-%m-%d_%H.%M"))
                 self.st.write(str(len(df)) + " Righe")

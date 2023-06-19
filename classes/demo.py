@@ -83,6 +83,7 @@ class Demo:
         self.db.conn.commit()
         self.st.experimental_rerun()
     
+
     def get_all_from_db(self, only_scopus = False, add_age = True):
         cols = ""
         for col in self.columns:
@@ -103,6 +104,7 @@ class Demo:
         self.db.cur.execute(sql, [self.year])
         res = self.db.cur.fetchall()
         return res
+
 
     def get_all(self):
         with self.st.spinner():

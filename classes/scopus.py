@@ -16,7 +16,7 @@ class Scopus:
     update_count_pubs = None
     update_count_authors = None
     metrics_update = []
-    min_days = 20
+    min_days = 0
     max_pucs = 100
 
 
@@ -140,8 +140,9 @@ class Scopus:
         return False
         
     
-    def import_pubs_by_year(self):
-        if can_update(self.st, self) and self.st.button("Importa le pubblicazioni degli autori in anagrafica per il " + str(self.year), key="scopus_pubs_" + str(self.year)):
+    def import_pubs_by_year(self, is_admin):
+        self.min_days = 7
+        if can_update(self.st, self, is_admin) and self.st.button("Importa le pubblicazioni degli autori in anagrafica per il " + str(self.year), key="scopus_pubs_" + str(self.year)):
             #with self.st.spinner():
                 self.import_pubs(False)
                 self.st.experimental_rerun()
@@ -186,8 +187,9 @@ class Scopus:
         return False
         
     
-    def import_metrics(self):
-        if can_update(self.st, self) and self.st.button("Importa le metriche degli autori in anagrafica per il " + str(self.year), key="scopus_albo_" + str(self.year)):
+    def import_metrics(self, is_admin):
+        self.min_days = 30
+        if can_update(self.st, self, is_admin) and self.st.button("Importa le metriche degli autori in anagrafica per il " + str(self.year), key="scopus_albo_" + str(self.year)):
             #with self.st.spinner():
                 self.import_pubs(True)
                 self.st.experimental_rerun()
@@ -274,9 +276,14 @@ class Scopus:
             sql = "INSERT INTO scopus_pucs (eid, " + fields + " pub_year) "
             sql += "SELECT %s, " + values + " %s "
             importer = Scopus_import(self.st, self.year)
+            progress_bar = self.st.progress(0,  text="Recupero dei PUC")
+            percent_total = len(res)
+            i = 1
             for r in res:
                 puc = importer.get_puc(r[0])
                 params = [puc["eid"]]
+                progress_bar.progress(i / percent_total, text="Recupero PUC per il documento " + puc["eid"])
+                i += 1
                 for f in range(1, 3):
                     params.append(puc["first" + str(f)])
                     params.append(puc["last" + str(f)])
@@ -287,6 +294,45 @@ class Scopus:
                 self.db.conn.commit()
         self.st.experimental_rerun()
 
+
+    #-----------------------------------AUTORI
+    def get_authors_update_details(self):
+        with self.st.spinner():
+            sql = "SELECT update_date, COUNT(scopus_inv_id) FROM scopus_invs "
+            sql += "GROUP BY update_date "
+            self.db.cur.execute(sql, [self.year])
+            res = self.db.cur.fetchall()
+            df = pd.DataFrame(res, columns=["update", "authors"])
+            if len(df) > 0:
+                self.update_date = df["update"][0]
+                self.update_count_authors = df["authors"][0]
+                dt = datetime.date(datetime.now()) - self.update_date
+                self.update_days = dt.days
+                return True
+        return False
+
+    def import_authors(self, is_admin):
+        self.min_days = 15
+        if can_update(self.st, self, is_admin) and self.st.button("Importa i ricercatori con affiliazione Gaslini da Scopus", key="scopus_authors"):
+            with self.st.spinner():
+                importer = Scopus_import(self.st, self.year)
+                invs = importer.get_authors()
+                if invs:
+                    for inv in invs:
+                        inv_id = inv["scopus_inv_id"]
+                        inv_name = inv["inv_name"]
+                        inv_surname = inv["inv_surname"]
+                        inv_names = json.dumps(inv["inv_names"])
+                        inv_areas = json.dumps(inv["inv_areas"])
+                        update_date = datetime.date(datetime.now())
+                        sql = "UPDATE scopus_invs SET inv_name=%s, inv_surname=%s, names=%s, areas=%s, update_date=%s WHERE scopus_inv_id=%s"
+                        self.db.cur.execute(sql, [inv_name, inv_surname, inv_names, inv_areas, update_date, inv_id])
+                        sql = "INSERT INTO scopus_invs (scopus_inv_id, inv_name, inv_surname, names, areas, update_date) "
+                        sql += "SELECT %s, %s, %s, %s, %s, %s "
+                        sql += "WHERE NOT EXISTS (SELECT 1 FROM scopus_invs WHERE scopus_inv_id = %s)"
+                        self.db.cur.execute(sql, [inv_id, inv_name, inv_surname, inv_names, inv_areas, update_date, inv_id])
+                        self.db.conn.commit()
+                    self.st.experimental_rerun()
 
 
     #-----------------------------------ALBO

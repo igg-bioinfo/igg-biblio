@@ -67,8 +67,8 @@ class Pubmed:
                 return True
         return False
     
-    def import_pubs_by_year(self):
-        if can_update(self.st, self) and self.st.button("Importa le pubblicazioni e relativi autori", key="pubmed_pubs_" + str(self.year)):
+    def import_pubs_by_year(self, is_admin):
+        if can_update(self.st, self, is_admin) and self.st.button("Importa le pubblicazioni e relativi autori", key="pubmed_pubs_" + str(self.year)):
             with self.st.spinner():
                 update_date = datetime.date(datetime.now())
                 self.db.cur.execute("DELETE FROM pubmed_pubs WHERE update_year = %s;",  [self.year])
