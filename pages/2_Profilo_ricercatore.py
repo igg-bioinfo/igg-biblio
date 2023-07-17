@@ -67,7 +67,7 @@ if investigator:
                 st.experimental_rerun()
         if is_admin and investigator.n_pubs and investigator.n_pubs > 0:
             if has_all_pucs == False:
-                bt_text = "Recupera i PUC per le " + str(investigator.pucs_missing) + " pubblicazioni mancanti "
+                bt_text = "Recupera i PUC mancanti per " + str(investigator.pucs_missing) + " pubblicazioni "
                 bt_text += "(max. " + str(scopus.max_pucs) + " alla volta)"
                 if st.button(bt_text, key="scopus_pucs"):
                     scopus.import_pucs(investigator.scopus_id)

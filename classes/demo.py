@@ -24,6 +24,8 @@ class Demo:
         self.db = db
         self.year = datetime.now().year if year == None else year
 
+    def get_description(self):
+        pass
 
     def get_update_details(self):
         with self.st.spinner():
@@ -42,7 +44,8 @@ class Demo:
     
 
     def upload_excel(self):
-        uploaded_file = self.st.file_uploader("**Importa un file excel per l'anagrafica**", type=['.xlsx', '.xls'])
+        self.get_description()
+        uploaded_file = self.st.file_uploader("**Importa un file excel per l'anagrafica che abbia le seguenti colonne: " + (", ".join(self.import_columns)) + "**", type=['.xlsx', '.xls'])
         if uploaded_file is not None:
             with self.st.spinner():
                 self.import_excel(uploaded_file)

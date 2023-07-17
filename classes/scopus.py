@@ -281,6 +281,8 @@ class Scopus:
             i = 1
             for r in res:
                 puc = importer.get_puc(r[0])
+                if puc == False:
+                    continue
                 params = [puc["eid"]]
                 progress_bar.progress(i / percent_total, text="Recupero PUC per il documento " + puc["eid"])
                 i += 1

@@ -133,24 +133,28 @@ class Scopus_import:
         puc["first1"] = authors[0]["@auid"]
         puc["last1"] = authors[len(authors) - 1]["@auid"]
         corr_array = []
-        corr_ids = []
         if "item" in content and "bibrecord" in content["item"] and "head" in content["item"]["bibrecord"] and "correspondence" in content["item"]["bibrecord"]["head"]:
             corr_el = content["item"]["bibrecord"]["head"]["correspondence"]
-            if type(corr_el) is dict:
-                corr_array.append(corr_el["person"]["ce:indexed-name"])
+            if corr_el is None:
+                pass
+            elif type(corr_el) is dict:
+                if "person" in corr_el and "ce:indexed-name" in corr_el["person"]:
+                    corr_array.append(corr_el["person"]["ce:indexed-name"])
             else:
                 index = 1
                 for ce in corr_el:
                     if index > 5:
                         break
-                    if "ce:indexed-name" in ce["person"]:
+                    if "person" in ce and "ce:indexed-name" in ce["person"]:
                         corr_array.append(ce["person"]["ce:indexed-name"])
                     else:
                         corr_name = ""
-                        for attr in ce["person"]:
-                            if attr == "ce":
-                                corr_name = ce["person"][attr]
-                        corr_array.append(corr_name)
+                        if "person" in ce:
+                            for attr in ce["person"]:
+                                if attr == "ce":
+                                    corr_name = ce["person"][attr]
+                            if corr_name != "":
+                                corr_array.append(corr_name)
                     index += 1
             for ca in corr_array:
                 f = 1
