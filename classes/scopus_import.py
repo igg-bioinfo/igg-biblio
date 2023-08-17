@@ -148,7 +148,7 @@ class Scopus_import:
                     if "person" in ce and "ce:indexed-name" in ce["person"]:
                         corr_array.append(ce["person"]["ce:indexed-name"])
                     else:
-                        corr_name = ""
+                        corr_name = "" 
                         if "person" in ce:
                             for attr in ce["person"]:
                                 if attr == "ce":
@@ -156,8 +156,8 @@ class Scopus_import:
                             if corr_name != "":
                                 corr_array.append(corr_name)
                     index += 1
+            f = 1
             for ca in corr_array:
-                f = 1
                 for a in authors:
                     if a["ce:indexed-name"] == ca:
                         puc["corr" + str(f)] = a["@auid"]

@@ -110,3 +110,8 @@ def admin_access(st, user):
     if user.has_access("admin") == False:
         st.error("Non hai sufficienti permessi per accedere a questa risorsa")
         st.stop()
+    
+    
+def check_year(st, year_now, pub_year, last_years):
+    year_start = year_now - last_years
+    return True if last_years == 0 else (pub_year >= year_start and pub_year < year_now)

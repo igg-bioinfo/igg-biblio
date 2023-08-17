@@ -7,7 +7,7 @@ import json
 
 class Scopus:
     columns = ["eid", "doi", "pm_id", "issn", "title", "pub_date", "pub_type", "cited", "author_name", "author_scopus"]
-    metrics_columns = ["pubs", "allcited", "hindex", "pubs5", "allcited5", "hindex5"]
+    metrics_columns = ["pubs", "allcited", "hindex", "pubs5", "allcited5", "hindex5", "pubs10", "allcited10", "hindex10"]
     excel_columns = ["EID", "DOI", "PubMed", "ISSN", "Titolo", "Data", "Tipo", "Cit.", "Autore", "SCOPUS"]
     is_gaslini = None
     year = 0
@@ -52,13 +52,12 @@ class Scopus:
             
 
     def import_pubs(self, is_all, scopus = None):
-        table = "scopus_pubs_all" if is_all else "scopus_pubs"
         filter =  "" if is_all else " AND PUBYEAR IS " + str(self.year) + " AND AFFIL(gaslini) "
         scopus_type = "all" if is_all else "by_year" 
 
         update_date = datetime.date(datetime.now())
         params = [self.year]
-        sql = "DELETE FROM " + table + " WHERE update_year = %s"
+        sql = "DELETE FROM scopus_pubs_all WHERE EXTRACT('Year' from TO_DATE(pub_date,'YYYY-MM-DD')) = %s"
         if scopus != None:
             sql += " and author_scopus = %s"
             params.append(scopus)
@@ -78,7 +77,7 @@ class Scopus:
         i = 1
         for author_pubs in authors_pubs:
             params = []
-            sql_fields = "INSERT INTO " + table + " ("
+            sql_fields = "INSERT INTO scopus_pubs_all ("
             sql_values = ") VALUES ("
             for col in self.columns:
                 value = author_pubs[col]
@@ -91,8 +90,8 @@ class Scopus:
                 sql_values += "%s, "
             params.append(update_date)
             params.append(self.year)
-            sql_fields += "update_date, update_year"
-            sql_values += "%s, %s)"
+            sql_fields += "update_date"
+            sql_values += "%s)"
             self.db.cur.execute(sql_fields + sql_values, params)
             self.db.cur.execute("DELETE FROM scopus_failed WHERE scopus_type = %s and update_year = %s and author_scopus = %s", 
                                 [scopus_type, self.year, author_pubs["author_scopus"]])
@@ -124,8 +123,8 @@ class Scopus:
     #-----------------------------------PUBBLICAZIONI PER ANNO
     def get_update_details(self):
         with self.st.spinner():
-            sql = "SELECT update_date, COUNT(pub_authors) FROM scopus_pubs WHERE "
-            sql += "update_year = %s "
+            sql = "SELECT update_date, COUNT(pub_authors) FROM scopus_pubs_all WHERE "
+            sql += "EXTRACT('Year' from TO_DATE(pub_date,'YYYY-MM-DD')) = %s "
             sql += "GROUP BY update_date, doi "
             self.db.cur.execute(sql, [self.year])
             res = self.db.cur.fetchall()
@@ -154,8 +153,8 @@ class Scopus:
             for col in self.columns:
                 cols += col + ", "
             cols = cols[:-2]
-            sql = "SELECT " + cols + " FROM scopus_pubs  "
-            sql += "WHERE update_year = %s "
+            sql = "SELECT " + cols + " FROM scopus_pubs_all  "
+            sql += "WHERE EXTRACT('Year' from TO_DATE(pub_date,'YYYY-MM-DD')) = %s "
             if self.is_gaslini:
                 sql += "AND is_gaslini = true "
             sql += "ORDER BY doi, pm_id "
@@ -188,8 +187,8 @@ class Scopus:
         
     
     def import_metrics(self, is_admin):
-        self.min_days = 30
-        if can_update(self.st, self, is_admin) and self.st.button("Importa le metriche degli autori in anagrafica per il " + str(self.year), key="scopus_albo_" + str(self.year)):
+        self.min_days = 0
+        if can_update(self.st, self, is_admin) and self.st.button("Aggiorna pubblicazioni e metriche (hindex, citazioni e numero di pubblicazioni) degli autori in anagrafica per il " + str(self.year), key="scopus_albo_" + str(self.year)):
             #with self.st.spinner():
                 self.import_pubs(True)
                 self.st.experimental_rerun()
@@ -198,57 +197,56 @@ class Scopus:
     def sort_by_cited(self, e):
         return e["cited"]
     
-    def get_condition(self, pub, is_all):
-        pub_year = datetime.strptime(pub["pub_date"], '%Y-%m-%d').year
-        last_5years = self.year - 5
-        return (pub_year <= self.year) == False if is_all else (pub_year <= self.year and pub_year >= last_5years) == False
-    
-    def get_hindex(self, pubs, is_all):
+    def get_hindex(self, pubs, years_range):
         hindex = 0
         index = 1
         for p in pubs:
-            if self.get_condition(p, is_all):
-                continue
             if index > p["cited"]:
                 break
-            hindex = index
-            index += 1
+            pub_year = datetime.strptime(p["pub_date"], '%Y-%m-%d').year
+            if check_year(self.st, self.year, pub_year, years_range):
+                hindex = index
+                index += 1
         return hindex
     
-    def get_allcited(self, pubs, is_all):
+    def get_allcited(self, pubs, years_range):
         allcited = 0
         for p in pubs:
-            if self.get_condition(p, is_all):
-                continue
-            allcited += p["cited"]
+            pub_year = datetime.strptime(p["pub_date"], '%Y-%m-%d').year
+            if check_year(self.st, self.year, pub_year, years_range):
+                allcited += p["cited"]
         return allcited
     
-    def get_n_pubs(self, pubs, is_all):
+    def get_n_pubs(self, pubs, years_range):
         n_pubs = 0
         for p in pubs:
-            if self.get_condition(p, is_all):
-                continue
-            n_pubs += 1
+            pub_year = datetime.strptime(p["pub_date"], '%Y-%m-%d').year
+            if check_year(self.st, self.year, pub_year, years_range):
+                n_pubs += 1
         return n_pubs
 
     def set_metrics(self, author_scopus, pubs: list, update_date):
         pubs.sort(key=self.sort_by_cited, reverse=True)
 
-        hindex = self.get_hindex(pubs, True)
-        n_pubs = self.get_n_pubs(pubs, True)
-        allcited = self.get_allcited(pubs, True)
+        hindex = self.get_hindex(pubs, 0)
+        n_pubs = self.get_n_pubs(pubs, 0)
+        allcited = self.get_allcited(pubs, 0)
 
-        hindex5 = self.get_hindex(pubs, False)
-        n_pubs5 = self.get_n_pubs(pubs, False)
-        allcited5 = self.get_allcited(pubs, False)
+        hindex5 = self.get_hindex(pubs, 5)
+        n_pubs5 = self.get_n_pubs(pubs, 5)
+        allcited5 = self.get_allcited(pubs, 5)
 
-        sql = "UPDATE scopus_metrics SET hindex=%s, pubs=%s, allcited=%s, hindex5=%s, pubs5=%s, allcited5=%s, "
+        hindex10 = self.get_hindex(pubs, 10)
+        n_pubs10 = self.get_n_pubs(pubs, 10)
+        allcited10 = self.get_allcited(pubs, 10)
+
+        sql = "UPDATE scopus_metrics SET hindex=%s, pubs=%s, allcited=%s, hindex5=%s, pubs5=%s, allcited5=%s, hindex10=%s, pubs10=%s, allcited10=%s, "
         sql += "update_date=%s WHERE author_scopus=%s and update_year = %s"
-        self.db.cur.execute(sql, [hindex, n_pubs, allcited, hindex5, n_pubs5, allcited5, update_date, author_scopus, self.year])
-        sql = "INSERT INTO scopus_metrics (author_scopus, hindex, pubs, allcited, hindex5, pubs5, allcited5, update_date, update_year) "
-        sql += "SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s "
+        self.db.cur.execute(sql, [hindex, n_pubs, allcited, hindex5, n_pubs5, allcited5, hindex10, n_pubs10, allcited10, update_date, author_scopus, self.year])
+        sql = "INSERT INTO scopus_metrics (author_scopus, hindex, pubs, allcited, hindex5, pubs5, allcited5, hindex10, pubs10, allcited10, update_date, update_year) "
+        sql += "SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s "
         sql += "WHERE NOT EXISTS (SELECT 1 FROM scopus_metrics WHERE author_scopus = %s and update_year = %s)"
-        self.db.cur.execute(sql, [author_scopus, hindex, n_pubs, allcited, hindex5, n_pubs5, allcited5, 
+        self.db.cur.execute(sql, [author_scopus, hindex, n_pubs, allcited, hindex5, n_pubs5, allcited5, hindex10, n_pubs10, allcited10, 
                                   update_date, self.year, author_scopus, self.year])
 
 
@@ -350,7 +348,7 @@ class Scopus:
             sql += "FROM investigators i "
             sql += "LEFT OUTER JOIN investigator_details d ON d.inv_name = i.inv_name "
             sql += "LEFT OUTER JOIN scopus_metrics m ON (d.scopus_id IS NULL and m.author_scopus = i.scopus_id) or (d.scopus_id IS NOT NULL and m.author_scopus = d.scopus_id) "
-            sql += "LEFT OUTER JOIN (select author_scopus, count(eid) as pubs_puc from scopus_pubs_all WHERE update_year = %s and eid IN (SELECT DISTINCT eid FROM scopus_pucs) group by author_scopus) p "
+            sql += "LEFT OUTER JOIN (select author_scopus, count(eid) as pubs_puc from scopus_pubs_all WHERE EXTRACT('Year' from TO_DATE(pub_date,'YYYY-MM-DD')) = %s and eid IN (SELECT DISTINCT eid FROM scopus_pucs) group by author_scopus) p "
             sql += "ON (d.scopus_id IS NULL and p.author_scopus = i.scopus_id) or (d.scopus_id IS NOT NULL and p.author_scopus = d.scopus_id) "
             sql += "WHERE i.update_year = %s "
             if only_scopus:
@@ -368,7 +366,7 @@ class Scopus:
             #self.st.success(sql)
             self.db.cur.execute(sql, [self.year, self.year])
             res = self.db.cur.fetchall()
-            albo_columns = ["Autore", "Contratto", "Età", "SCOPUS ID", "Pubs", "Cit.", "H-Index", "Pubs 5 anni", "Cit. 5 anni", "H-Index 5 anni", "Pubs con PUC", "Primi", "Ultimi", "Corr."]
+            albo_columns = ["Autore", "Contratto", "Età", "SCOPUS ID", "Pubs", "Cit.", "H-Index", "Pubs 5 anni", "Cit. 5 anni", "H-Index 5 anni", "Pubs 10 anni", "Cit. 10 anni", "H-Index 10 anni", "Pubs con PUC", "Primi", "Ultimi", "Corr."]
             df = pd.DataFrame(res, columns=albo_columns)
             df["Email"] = ""
             for i, row in df.iterrows():
