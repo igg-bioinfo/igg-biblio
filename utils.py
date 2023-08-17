@@ -4,6 +4,12 @@ import unicodedata
 site_name = "IGG Biblio"
 age_field = "FLOOR((DATE_PART('day', now() - i.date_birth) / 365)::float)"
 row_height = 666
+min_anagrafica = 0
+min_pubmed = 0
+min_scival = 0
+min_scopus_pubs_year = 0
+min_scopus_metrics = 0
+min_scopus_authors = 0
 
 
 def hide_menu(st):
@@ -63,16 +69,12 @@ def download_excel(st, df, file_name):
     st.download_button("Scarica in Excel", towrite, file_name + ".xlsx", "text/excel", key='download-excel')
 
 
-def can_update(st, obj, is_admin = True):
+def can_update(st, obj):
     passed_days = obj.min_days - (0 if obj.update_days == None else obj.update_days) 
     can_update = obj.update_days == None or passed_days < 1 
     if can_update:
         if obj.update_days == None:
             st.error("Nessun dato presente")
-        elif is_admin == True:
-            st.success("E' possibile aggiornare i dati")
-        if is_admin == False:
-            can_update = False
     else:
         st.warning("E' possibile aggiornare i dati tra " + str(passed_days) + " giorni")
     return can_update

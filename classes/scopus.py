@@ -139,9 +139,9 @@ class Scopus:
         return False
         
     
-    def import_pubs_by_year(self, is_admin):
-        self.min_days = 7
-        if can_update(self.st, self, is_admin) and self.st.button("Importa le pubblicazioni degli autori in anagrafica per il " + str(self.year), key="scopus_pubs_" + str(self.year)):
+    def import_pubs_by_year(self):
+        self.min_days = min_scopus_pubs_year
+        if can_update(self.st, self) and self.st.button("Importa le pubblicazioni degli autori in anagrafica per il " + str(self.year), key="scopus_pubs_" + str(self.year)):
             #with self.st.spinner():
                 self.import_pubs(False)
                 self.st.experimental_rerun()
@@ -186,9 +186,9 @@ class Scopus:
         return False
         
     
-    def import_metrics(self, is_admin):
-        self.min_days = 0
-        if can_update(self.st, self, is_admin) and self.st.button("Aggiorna pubblicazioni e metriche (hindex, citazioni e numero di pubblicazioni) degli autori in anagrafica per il " + str(self.year), key="scopus_albo_" + str(self.year)):
+    def import_metrics(self):
+        self.min_days = min_scopus_metrics
+        if can_update(self.st, self) and self.st.button("Aggiorna pubblicazioni e metriche (hindex, citazioni e numero di pubblicazioni) degli autori in anagrafica per il " + str(self.year), key="scopus_albo_" + str(self.year)):
             #with self.st.spinner():
                 self.import_pubs(True)
                 self.st.experimental_rerun()
@@ -252,10 +252,10 @@ class Scopus:
 
     #-----------------------------------PUC
     def import_pucs(self, scopus = None):
-        params = [self.year]
+        params = []
         sql = "SELECT eid "
         sql += "FROM scopus_pubs_all "
-        sql += "WHERE update_year = %s "
+        sql += "WHERE 1 = 1 "
         if scopus != None:
             sql += " and author_scopus = %s "
             params.append(scopus)
@@ -311,9 +311,9 @@ class Scopus:
                 return True
         return False
 
-    def import_authors(self, is_admin):
-        self.min_days = 15
-        if can_update(self.st, self, is_admin) and self.st.button("Importa i ricercatori con affiliazione Gaslini da Scopus", key="scopus_authors"):
+    def import_authors(self):
+        self.min_days = min_scopus_authors
+        if can_update(self.st, self) and self.st.button("Importa i ricercatori con affiliazione Gaslini da Scopus", key="scopus_authors"):
             with self.st.spinner():
                 importer = Scopus_import(self.st, self.year)
                 invs = importer.get_authors()

@@ -13,7 +13,6 @@ db = DB(st)
 db.connect()
 user = User(st, db)
 user.is_logged()
-admin_access(st, user)
 
 
 year = select_year(st)
