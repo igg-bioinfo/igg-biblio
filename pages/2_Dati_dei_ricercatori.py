@@ -17,7 +17,8 @@ demo = Demo(st, db, datetime.now().year)
 invs = []
 for inv in demo.get_all_from_db():
     invs.append(inv[0])
-inv_name = st.multiselect('Ricercatore:', invs, max_selections= 1)
+
+inv_name = st.multiselect('Scegli un ricercatore tra i ' + str(len(invs)) + ' presenti in db:', invs, max_selections= 1)
 if inv_name:
     investigator = User(st, db, inv_name[0])
     
@@ -39,7 +40,7 @@ if investigator:
 
     orcid_id = st.text_input("ORCID ID:", value=investigator.orcid_id if investigator.orcid_id else "")
     researcher_id = st.text_input("Researcher ID:", value=investigator.researcher_id if investigator.researcher_id else "")
-    investigator.save_ids(first_name, last_name, user_name, contract, scopus_id, orcid_id, researcher_id)
+    investigator.save_ids(first_name, last_name, user_name, contract, unit, scopus_id, orcid_id, researcher_id)
     st.markdown("---")
 
     if investigator.first_name != "" or investigator.last_name != "":
@@ -64,7 +65,7 @@ if investigator:
     year_current = datetime.now().year
     investigator.get_metrics(year_current)
     st.write("Ultimo aggiornamento: **" + str(investigator.metrics_date) + "**")
-    has_all_pucs = investigator.check_pucs(year_current)
+    has_all_pucs = investigator.check_pucs()
     if has_all_pucs:
         investigator.get_pucs(year_current)
     col_5years, col_10years, col_all = st.columns([1,1,1])
@@ -96,7 +97,7 @@ if investigator:
         if investigator.n_pubs and investigator.n_pubs > 0:
             if has_all_pucs == False:
                 bt_text = "Recupera i PUC mancanti per " + str(investigator.pucs_missing) + " pubblicazioni "
-                bt_text += "(max. " + str(scopus.max_pucs) + " alla volta)"
+                bt_text += "(max. " + str(max_pucs) + " alla volta)"
                 if st.button(bt_text, key="scopus_pucs"):
                     scopus.import_pucs(investigator.scopus_id)
     else:

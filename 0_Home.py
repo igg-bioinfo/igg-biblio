@@ -19,7 +19,8 @@ if user.login():
     demo = Demo(st, db, year)
     if demo.get_update_details():
         st.write("Ultimo aggiornamento: **" + str(demo.update_date) + " ("+ str(demo.update_days) + " giorni fa)**")
-        st.write("Ricercatori: **" + str(demo.update_count) + "**")
+        st.write("Ricercatori totali: **" + str(demo.update_count) + "**")
+        st.write("Ricercatori con Scopus ID e ancora attivi: **" + str(demo.update_count_filter) + "**")
     demo.upload_excel()
     st.markdown("###### Autori con affiliazione Gaslini recuperati da Scopus")
     scopus_autori = Scopus(st, db, year)
@@ -44,6 +45,15 @@ if user.login():
             st.write("Ricercatori con metriche aggiornate al " + str(updates["update"]) + ": **" + str(updates["metrics"]) + "**")
     scopus_albo.import_metrics()
 
+    st.markdown("---")
+    st.markdown("#### PUC da Scopus")
+    scopus_pucs = Scopus(st, db, year)
+    st.write("I primi nomi, gli ultimi nomi e i corresponding vengono recuperati interrogando Scopus pubblicazione per pubblicazione.")
+    if scopus_pucs.get_pucs_update_details():
+        bt_text = "Recupera i PUC mancanti per " + str(scopus_pucs.pucs_missing) + " pubblicazioni "
+        bt_text += "(max. " + str(max_pucs) + " alla volta)"
+        if st.button(bt_text, key="scopus_pucs"):
+            scopus_pucs.import_pucs()
 
     st.markdown("---")
     st.markdown("#### Scopus - Pubblicazioni " + str(year))

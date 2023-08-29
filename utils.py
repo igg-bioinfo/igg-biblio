@@ -10,6 +10,7 @@ min_scival = 0
 min_scopus_pubs_year = 0
 min_scopus_metrics = 0
 min_scopus_authors = 0
+max_pucs = 1000
 
 
 def hide_menu(st):

@@ -16,8 +16,8 @@ class Scopus:
     update_count_pubs = None
     update_count_authors = None
     metrics_update = []
+    pucs_missing = 0
     min_days = 0
-    max_pucs = 100
 
 
     #-----------------------------------GENERALI
@@ -54,24 +54,25 @@ class Scopus:
     def import_pubs(self, is_all, scopus = None):
         filter =  "" if is_all else " AND PUBYEAR IS " + str(self.year) + " AND AFFIL(gaslini) "
         scopus_type = "all" if is_all else "by_year" 
-
-        update_date = datetime.date(datetime.now())
-        params = [self.year]
-        sql = "DELETE FROM scopus_pubs_all WHERE EXTRACT('Year' from TO_DATE(pub_date,'YYYY-MM-DD')) = %s"
-        if scopus != None:
-            sql += " and author_scopus = %s"
-            params.append(scopus)
-        self.db.cur.execute(sql, params)
-        self.db.conn.commit()
         
         importer = Scopus_import(self.st, self.year)
         demo = Demo(self.st, self.db, self.year)
         scopus_invs = demo.get_all_from_db(True, False)
-        df_invs = pd.DataFrame(scopus_invs, columns=demo.columns)
+        df_invs = pd.DataFrame(scopus_invs, columns=['inv_name'] + demo.columns)
         authors_pubs = importer.get_authors_pubs(df_invs, filter, scopus)
         old_author_scopus = ""
         pubs = []
         author_pubs = None
+
+        update_date = datetime.date(datetime.now())
+        params = []
+        sql = "DELETE FROM scopus_pubs_all "
+        if scopus != None:
+            sql += " WHERE author_scopus = %s"
+            params.append(scopus)
+        self.db.cur.execute(sql, params)
+        self.db.conn.commit()
+
         progress_bar = self.st.progress(0,  text="Aggiornamento del database")
         percent_total = len(authors_pubs)
         i = 1
@@ -89,7 +90,6 @@ class Scopus:
                 sql_fields += col + ", "
                 sql_values += "%s, "
             params.append(update_date)
-            params.append(self.year)
             sql_fields += "update_date"
             sql_values += "%s)"
             self.db.cur.execute(sql_fields + sql_values, params)
@@ -170,9 +170,15 @@ class Scopus:
     #-----------------------------------METRICHE
     def get_metrics_update_details(self):
         with self.st.spinner():
-            sql = "SELECT update_date, COUNT(metric_id) FROM scopus_metrics "
-            sql += "WHERE update_year = %s GROUP BY update_date ORDER BY update_date DESC"
-            self.db.cur.execute(sql, [self.year])
+            sql = "SELECT m.update_date, COUNT(m.metric_id) FROM scopus_metrics m "
+            sql += "INNER JOIN ( "
+            sql += "select CASE WHEN d.scopus_id IS NULL then i.scopus_id else d.scopus_id end scopus_id "
+            sql += "from investigators i "
+            sql += "left outer join investigator_details d on d.inv_name = i.inv_name "
+            sql += "where i.update_year = %s and (i.date_end is null or i.date_end > now()) "
+            sql += ") i on i.scopus_id = m.author_scopus "
+            sql += "WHERE m.update_year = %s GROUP BY m.update_date ORDER BY m.update_date DESC"
+            self.db.cur.execute(sql, [self.year, self.year])
             res = self.db.cur.fetchall()
             df = pd.DataFrame(res, columns=["update", "metrics"])
             self.metrics_update = []
@@ -188,7 +194,7 @@ class Scopus:
     
     def import_metrics(self):
         self.min_days = min_scopus_metrics
-        if can_update(self.st, self) and self.st.button("Aggiorna pubblicazioni e metriche (hindex, citazioni e numero di pubblicazioni) degli autori in anagrafica per il " + str(self.year), key="scopus_albo_" + str(self.year)):
+        if can_update(self.st, self) and self.st.button("Aggiorna pubblicazioni e metriche (hindex, citazioni e numero di pubblicazioni) degli autori", key="scopus_albo_" + str(self.year)):
             #with self.st.spinner():
                 self.import_pubs(True)
                 self.st.experimental_rerun()
@@ -251,15 +257,26 @@ class Scopus:
 
 
     #-----------------------------------PUC
+    def get_pucs_update_details(self):
+        with self.st.spinner():
+            sql = "SELECT distinct eid FROM scopus_pubs_all WHERE eid NOT IN ( "
+            sql += "SELECT eid FROM scopus_pucs "
+            sql += ") "
+            self.db.cur.execute(sql, [self.year])
+            res = self.db.cur.fetchall()
+            df = pd.DataFrame(res, columns=["pucs_missing"])
+            self.pucs_missing = len(df)
+            return len(df) > 0
+    
     def import_pucs(self, scopus = None):
         params = []
-        sql = "SELECT eid "
+        sql = "SELECT DISTINCT eid "
         sql += "FROM scopus_pubs_all "
         sql += "WHERE 1 = 1 "
         if scopus != None:
             sql += " and author_scopus = %s "
             params.append(scopus)
-        sql += "and eid NOT IN (SELECT DISTINCT eid FROM scopus_pucs) LIMIT " + str(self.max_pucs)
+        sql += "and eid NOT IN (SELECT DISTINCT eid FROM scopus_pucs) LIMIT " + str(max_pucs)
         self.db.cur.execute(sql, params)
         res = self.db.cur.fetchall()
         if res:

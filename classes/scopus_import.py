@@ -103,7 +103,7 @@ class Scopus_import:
                         restart = res[1] 
                         total = res[2]
             for pub in pubs:
-                authors_pubs.append(pub)   
+                authors_pubs.append(pub)  
         return authors_pubs
 
 
@@ -156,6 +156,7 @@ class Scopus_import:
                             if corr_name != "":
                                 corr_array.append(corr_name)
                     index += 1
+            corr_array = list(dict.fromkeys(corr_array))
             f = 1
             for ca in corr_array:
                 for a in authors:

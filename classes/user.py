@@ -65,8 +65,8 @@ class User:
     def get_investigator(self):
         sql = ""
         sql += "SELECT " + age_field + " as age, "
-        sql += "CASE WHEN d.first_name IS NULL THEN '' ELSE d.first_name END as first_name, "
-        sql += "CASE WHEN d.last_name IS NULL THEN '' ELSE d.last_name END as last_name, "
+        sql += "CASE WHEN d.first_name IS NULL THEN i.first_name ELSE d.first_name END as first_name, "
+        sql += "CASE WHEN d.last_name IS NULL THEN i.last_name ELSE d.last_name END as last_name, "
         sql += "CASE WHEN d.unit IS NULL THEN i.unit ELSE d.unit END as unit, "
         sql += "CASE WHEN d.contract IS NULL THEN i.contract ELSE d.contract END as contract, "
         sql += "CASE WHEN d.scopus_id IS NULL THEN i.scopus_id ELSE d.scopus_id END as scopus_id, " 
@@ -141,7 +141,7 @@ class User:
 
 
     #-----------------------------------AGGIORNA IDS
-    def save_ids(self, first_name, last_name, user_name, contract, scopus_id, orcid_id, researcher_id):   
+    def save_ids(self, first_name, last_name, user_name, contract, unit, scopus_id, orcid_id, researcher_id):   
         bt_text = "Conferma gli IDs"
         if self.user_confirmed:
             self.st.success("Gli IDs del ricercatore sono stati confermati manualmente")  
@@ -151,16 +151,20 @@ class User:
         if self.st.button(bt_text, key="save_ids"):
             with self.st.spinner():
                 update_date = datetime.date(datetime.now())
-                sql = "UPDATE investigator_details SET first_name=%s, last_name=%s, contract=%s, scopus_id=%s, orcid_id=%s, researcher_id=%s, update_date=%s WHERE inv_name=%s "
-                self.db.cur.execute(sql, [first_name, last_name, contract, scopus_id, orcid_id, researcher_id, update_date, self.name])
-                sql = "INSERT INTO investigator_details (inv_name, first_name, last_name, contract, scopus_id, orcid_id, researcher_id, update_date) "
-                sql += "SELECT %s, %s, %s, %s, %s, %s, %s, %s "
+                sql = "UPDATE investigator_details SET first_name=%s, last_name=%s, contract=%s, unit=%s, scopus_id=%s, orcid_id=%s, researcher_id=%s, update_date=%s WHERE inv_name=%s "
+                self.db.cur.execute(sql, [first_name, last_name, contract, unit, scopus_id, orcid_id, researcher_id, update_date, self.name])
+                sql = "INSERT INTO investigator_details (inv_name, first_name, last_name, contract, unit, scopus_id, orcid_id, researcher_id, update_date) "
+                sql += "SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s "
                 sql += "WHERE NOT EXISTS (SELECT 1 FROM investigator_details WHERE inv_name = %s)"
-                self.db.cur.execute(sql, [self.name, first_name, last_name, contract, scopus_id, orcid_id, researcher_id, update_date, self.name])
+                self.db.cur.execute(sql, [self.name, first_name, last_name, contract, unit, scopus_id, orcid_id, researcher_id, update_date, self.name])
                 self.db.conn.commit()
                 if scopus_id != None and scopus_id != "" and scopus_id != self.scopus_id and self.scopus_id != None and self.scopus_id != "":
                     sql = "call  update_scopus_pucs(%s, %s) "
                     self.db.cur.execute(sql, [self.scopus_id, scopus_id])
+                    self.db.conn.commit()
+                if user_name != '' and user_name != self.user_name:
+                    sql = "UPDATE user SET user_name=%s, WHERE name=%s "
+                    self.db.cur.execute(sql, [user_name, self.name])
                     self.db.conn.commit()
                 self.st.experimental_rerun()
 
@@ -217,10 +221,10 @@ class User:
 
 
     #-----------------------------------PUC
-    def check_pucs(self, year):
-        params = [year, self.scopus_id]
+    def check_pucs(self):
+        params = [self.scopus_id]
         sql = "SELECT COUNT(eid) AS eids FROM scopus_pubs_all "
-        sql += "WHERE EXTRACT('Year' from TO_DATE(pub_date,'YYYY-MM-DD')) = %s and author_scopus = %s "
+        sql += "WHERE author_scopus = %s "
         sql += "and eid NOT IN (SELECT DISTINCT eid FROM scopus_pucs) GROUP BY author_scopus "
         self.db.cur.execute(sql, params)
         res = self.db.cur.fetchall()

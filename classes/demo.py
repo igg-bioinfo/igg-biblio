@@ -12,10 +12,20 @@ class Demo:
     year = 0
     update_date = None
     update_count = None
+    update_count_filter = None
     update_days = None
-    import_columns = ["Cognome","Data di nascita","Situazione contrattuale","SCOPUS ID"]
-    columns = ["inv_name", "date_birth", "contract", "scopus_id"]
-    excel_columns = ["Nome & Cognome", "Nascita", "Contratto", "SCOPUS", "Età"]
+    #import_columns = ["Cognome","Data di nascita","Situazione contrattuale","SCOPUS ID"]
+    import_columns = ["Cognome", "Nome", "Data di nascita", "e-mail", "e-mail2", "Struttura23",
+                      "EleggibilitàWF", "Situazione contrattuale", "Data fine contratto vigente",
+                      "ORCID", "ResearchID", "AuthorID Scopus"]
+    #columns = ["inv_name", "date_birth", "contract", "scopus_id"]
+    columns = ["last_name", "first_name", "date_birth", "email", "email2", "unit",
+               "is_workflow", "contract", "date_end",
+               "orcid_id", "researcher_id", "scopus_id"]
+    #excel_columns = ["Nome & Cognome", "Nascita", "Contratto", "SCOPUS", "Età"]
+    excel_columns = ["Nome & Cognome", "Cognome", "Nome", "Nascita", "Email", "Email2", "Unità",
+               "Workflow", "Contratto", "Data fine contratto",
+               "ORCID ID", "RESEARCHER ID", "SCOPUS ID", "Età"]
     min_days = 3
 
 
@@ -39,29 +49,22 @@ class Demo:
                 self.update_count = df["id"][0]
                 dt = datetime.date(datetime.now()) - self.update_date
                 self.update_days = dt.days
+                res1 = self.get_all_from_db(True)
+                self.update_count_filter = len(res1)
                 return True
         return False
     
 
     def upload_excel(self):
         self.get_description()
-        uploaded_file = self.st.file_uploader("**Importa un file excel per l'anagrafica che abbia le seguenti colonne: " + (", ".join(self.import_columns)) + "**", type=['.xlsx', '.xls'])
+        uploaded_file = self.st.file_uploader("**Importa un file excel per l'anagrafica che abbia le seguenti colonne: " + 
+                                              (", ".join(self.import_columns)) + "**", type=['.xlsx', '.xls'])
         if uploaded_file is not None:
             with self.st.spinner():
                 self.import_excel(uploaded_file)
     
-
-    def import_excel(self, excel):
-        df_excel = pd.read_excel(excel)
-        for col in self.import_columns:
-            if col not in list(df_excel.columns):
-                self.st.error("'" + col + "' non è una colonna valida")
-                return False
-            
-        self.db.cur.execute("DELETE FROM pubmed_pubs WHERE update_year = %s;",  [self.year])
-        self.db.conn.commit()
-        
-        sql_fields = "INSERT INTO investigators ("
+    def create_sql1(self, df_excel):
+        sql_fields = "INSERT INTO investigators ( "
         sql_values = ") VALUES ("
         for col in self.columns:
             sql_fields += col + ", "
@@ -78,20 +81,63 @@ class Demo:
                 elif isinstance(value, str):
                     value = value.strip().title()
                 params.append(value)
-            #inv_aliases is not present in excel
-            params.append([])
             params.append(update_date)
             params.append(self.year)
             self.db.cur.execute(sql_fields + sql_values, params)
+
+
+    def create_sql2(self, df_excel):
+        sql_fields = "INSERT INTO investigators (inv_name, "
+        sql_values = ") VALUES (%s, "
+        for col in self.columns:
+            sql_fields += col + ", "
+            sql_values += "%s, "
+        sql_fields += "update_date, update_year, is_enable"
+        sql_values += "%s, %s, %s)"
+        update_date = datetime.date(datetime.now())
+        for i, row in df_excel.iterrows():
+            params = [row["Cognome"].strip().title() + " " + row["Nome"].strip().title()]
+            for col in self.import_columns:
+                value = row[col]
+                if str(value) in ["N.A.", "nan"]:
+                    value = None
+                elif "e-mail" in col:
+                    value = value.strip().lower()
+                elif col == "EleggibilitàWF":
+                    value = str(value) in ('TRUE', '1')
+                elif isinstance(value, str):
+                    value = value.strip().title()
+                params.append(value)
+            params.append(update_date)
+            params.append(self.year)
+            params.append(True)
+            #self.st.success(sql_fields + sql_values)
+            #self.st.success(params)
+            self.db.cur.execute(sql_fields + sql_values, params)
+            self.db.conn.commit()
+        self.db.close()
+        self.db.connect()
+
+
+    def import_excel(self, excel):
+        df_excel = pd.read_excel(excel)
+        for col in self.import_columns:
+            if col not in list(df_excel.columns):
+                self.st.error("'" + col + "' non è una colonna valida")
+                return False
+        self.db.cur.execute("DELETE FROM investigators WHERE update_year = %s;",  [self.year])
         self.db.conn.commit()
+        self.create_sql2(df_excel)
         self.st.experimental_rerun()
     
 
     def get_all_from_db(self, only_scopus = False, add_age = True):
-        cols = ""
+        cols = "CASE WHEN d.inv_name IS NULL THEN i.inv_name ELSE d.inv_name END as inv_name, "
         for col in self.columns:
             if col == "scopus_id":
-                cols += "CASE WHEN d.scopus_id IS NULL THEN i.scopus_id ELSE d.scopus_id END as scopus, "
+                cols += "CASE WHEN d.scopus_id IS NULL THEN i.scopus_id ELSE d.scopus_id END as scopus_id, "
+            #elif  col == "email":
+            #    cols += "CASE WHEN d.user_name IS NULL THEN i.email ELSE d.user_name END as user_name, "
             else:
                 cols += "i." + col + ", "
         if add_age:
@@ -102,7 +148,7 @@ class Demo:
         sql += "LEFT OUTER JOIN investigator_details d ON d.inv_name = i.inv_name "
         sql += "WHERE i.update_year = %s "
         if only_scopus:
-            sql += " and (i.scopus_id IS NOT NULL or d.scopus_id IS NOT NULL) "
+            sql += " and (i.date_end is null or i.date_end > now()) and (i.scopus_id IS NOT NULL or d.scopus_id IS NOT NULL) "
         sql += "ORDER BY i.inv_name "
         self.db.cur.execute(sql, [self.year])
         res = self.db.cur.fetchall()
@@ -113,6 +159,6 @@ class Demo:
         with self.st.spinner():
             res = self.get_all_from_db()
             df = pd.DataFrame(res, columns=self.excel_columns)
-            df_grid = df.drop("Nascita", axis=1).set_index('Nome & Cognome')
+            df_grid = df.drop("Nascita", axis=1).drop("Workflow", axis=1).set_index('Nome & Cognome')
             download_excel(self.st, df_grid, "investigators_" + datetime.now().strftime("%Y-%m-%d_%H.%M"))
             self.st.dataframe(df_grid, height=row_height)
