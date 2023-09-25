@@ -114,7 +114,6 @@ class Pubmed:
             self.db.cur.execute(sql, [self.year])
             res = self.db.cur.fetchall()
             df = pd.DataFrame(res, columns=self.excel_columns)
-            df.set_index('Autore', inplace=True)
             download_excel(self.st, df, "pubmed_author_pubs_" + datetime.now().strftime("%Y-%m-%d_%H.%M"))
             self.st.write(str(len(df)) + " Righe")
-            self.st.dataframe(df, height=666)
+            show_df(self.st, df)

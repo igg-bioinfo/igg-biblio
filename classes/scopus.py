@@ -42,9 +42,8 @@ class Scopus:
             self.db.cur.execute(sql, [scopus_type, self.year])
             res = self.db.cur.fetchall()
             df = pd.DataFrame(res, columns=["SCOPUS ID", "Autore", "Aggiornamento fallito"])
-            df.set_index('Autore', inplace=True)
             if len(df) > 0:
-                self.st.dataframe(df)
+                show_df(self.st, df)
                 if self.st.button("Riprova ad importare le richieste fallite"):
                     for i, row in df.iterrows():
                         self.import_by_year(row["SCOPUS ID"])
@@ -52,12 +51,13 @@ class Scopus:
             
 
     def import_pubs(self, is_all, scopus = None):
+        #scopus = '35204271600'
         filter =  "" if is_all else " AND PUBYEAR IS " + str(self.year) + " AND AFFIL(gaslini) "
         scopus_type = "all" if is_all else "by_year" 
         
         importer = Scopus_import(self.st, self.year)
         demo = Demo(self.st, self.db, self.year)
-        scopus_invs = demo.get_all_from_db(True, False)
+        scopus_invs = demo.get_all_from_db(True)
         df_invs = pd.DataFrame(scopus_invs, columns=['inv_name'] + demo.columns)
         authors_pubs = importer.get_authors_pubs(df_invs, filter, scopus)
         old_author_scopus = ""
@@ -66,10 +66,13 @@ class Scopus:
 
         update_date = datetime.date(datetime.now())
         params = []
-        sql = "DELETE FROM scopus_pubs_all "
+        sql = "DELETE FROM scopus_pubs_all WHERE 1=1 "
         if scopus != None:
-            sql += " WHERE author_scopus = %s"
+            sql += " AND author_scopus = %s"
             params.append(scopus)
+        if is_all == False:
+            sql += " AND EXTRACT('Year' from TO_DATE(pub_date,'YYYY-MM-DD')) = %s "
+            params.append(self.year)
         self.db.cur.execute(sql, params)
         self.db.conn.commit()
 
@@ -161,10 +164,8 @@ class Scopus:
             self.db.cur.execute(sql, [self.year])
             res = self.db.cur.fetchall()
             df = pd.DataFrame(res, columns=self.excel_columns)
-            df.set_index('Autore', inplace=True)
             download_excel(self.st, df, "scopus_pubs_" + str(self.year) + "_" + datetime.now().strftime("%Y-%m-%d_%H.%M"))
-            self.st.write(str(len(df)) + " Righe")
-            self.st.dataframe(df, height=row_height)
+            show_df(self.st, df)
 
 
     #-----------------------------------METRICHE
@@ -172,10 +173,9 @@ class Scopus:
         with self.st.spinner():
             sql = "SELECT m.update_date, COUNT(m.metric_id) FROM scopus_metrics m "
             sql += "INNER JOIN ( "
-            sql += "select CASE WHEN d.scopus_id IS NULL then i.scopus_id else d.scopus_id end scopus_id "
-            sql += "from investigators i "
-            sql += "left outer join investigator_details d on d.inv_name = i.inv_name "
-            sql += "where i.update_year = %s and (i.date_end is null or i.date_end > now()) "
+            sql += "select i.scopus_id "
+            sql += "from view_invs i "
+            sql += "where i.update_year = %s " # and (i.date_end is null or i.date_end > now())
             sql += ") i on i.scopus_id = m.author_scopus "
             sql += "WHERE m.update_year = %s GROUP BY m.update_date ORDER BY m.update_date DESC"
             self.db.cur.execute(sql, [self.year, self.year])
@@ -203,14 +203,16 @@ class Scopus:
     def sort_by_cited(self, e):
         return e["cited"]
     
+    def get_pub_year(self, p):
+        return datetime.strptime(p["pub_date"], '%Y-%m-%d').year if p["pub_date"] != None else 0
+    
     def get_hindex(self, pubs, years_range):
         hindex = 0
         index = 1
         for p in pubs:
-            if index > p["cited"]:
+            if p["cited"] != None and index > p["cited"]:
                 break
-            pub_year = datetime.strptime(p["pub_date"], '%Y-%m-%d').year
-            if check_year(self.st, self.year, pub_year, years_range):
+            if check_year(self.year, self.get_pub_year(p), years_range):
                 hindex = index
                 index += 1
         return hindex
@@ -218,16 +220,14 @@ class Scopus:
     def get_allcited(self, pubs, years_range):
         allcited = 0
         for p in pubs:
-            pub_year = datetime.strptime(p["pub_date"], '%Y-%m-%d').year
-            if check_year(self.st, self.year, pub_year, years_range):
-                allcited += p["cited"]
+            if check_year(self.year, self.get_pub_year(p), years_range):
+                allcited += p["cited"] if p["cited"] != None else 0
         return allcited
     
     def get_n_pubs(self, pubs, years_range):
         n_pubs = 0
         for p in pubs:
-            pub_year = datetime.strptime(p["pub_date"], '%Y-%m-%d').year
-            if check_year(self.st, self.year, pub_year, years_range):
+            if check_year(self.year, self.get_pub_year(p), years_range):
                 n_pubs += 1
         return n_pubs
 
@@ -359,17 +359,16 @@ class Scopus:
             sql += "SELECT l.*, COUNT(c.eid) as corrs FROM ( "
             sql += "SELECT f.*, COUNT(l.eid) as lasts FROM ( "
             sql += "SELECT s.*, COUNT(f.eid) as firsts FROM ( "
-            sql += "SELECT i.inv_name, i.contract, " + age_field + " as age, CASE WHEN d.scopus_id IS NULL THEN i.scopus_id ELSE d.scopus_id END as scopus, "
+            sql += "SELECT i.inv_name, i.contract, i.age, i.scopus_id as scopus, "
             sql += (", ".join(self.metrics_columns)) + ", "
             sql += "(CASE WHEN pubs - (CASE WHEN pubs_puc IS NULL THEN 0 ELSE pubs_puc END) > 0 THEN (CASE WHEN pubs_puc IS NULL THEN 0 ELSE pubs_puc END)::text ELSE (CASE WHEN pubs IS NULL OR pubs = 0 THEN 'Nessun dato' ELSE 'OK' END) END) as puc "
-            sql += "FROM investigators i "
-            sql += "LEFT OUTER JOIN investigator_details d ON d.inv_name = i.inv_name "
-            sql += "LEFT OUTER JOIN scopus_metrics m ON (d.scopus_id IS NULL and m.author_scopus = i.scopus_id) or (d.scopus_id IS NOT NULL and m.author_scopus = d.scopus_id) "
-            sql += "LEFT OUTER JOIN (select author_scopus, count(eid) as pubs_puc from scopus_pubs_all WHERE EXTRACT('Year' from TO_DATE(pub_date,'YYYY-MM-DD')) = %s and eid IN (SELECT DISTINCT eid FROM scopus_pucs) group by author_scopus) p "
-            sql += "ON (d.scopus_id IS NULL and p.author_scopus = i.scopus_id) or (d.scopus_id IS NOT NULL and p.author_scopus = d.scopus_id) "
+            sql += "FROM view_invs i "
+            sql += "LEFT OUTER JOIN scopus_metrics m ON m.author_scopus = i.scopus_id "
+            sql += "LEFT OUTER JOIN (select author_scopus, count(eid) as pubs_puc from scopus_pubs_all WHERE eid IN (SELECT DISTINCT eid FROM scopus_pucs) group by author_scopus) p "
+            sql += "ON p.author_scopus = i.scopus_id "
             sql += "WHERE i.update_year = %s "
             if only_scopus:
-                sql += " and (i.scopus_id IS NOT NULL or d.scopus_id IS NOT NULL) "
+                sql += " and i.scopus_id IS NOT NULL "
             sql += ") s "
             sql += "LEFT OUTER JOIN scopus_pucs f on (s.scopus = f.first1 or s.scopus = f.first2 or s.scopus = f.first3) "
             sql += "GROUP BY inv_name, contract, age, scopus, " + (", ".join(self.metrics_columns)) + ", puc "
@@ -381,7 +380,7 @@ class Scopus:
             sql += "GROUP BY inv_name, contract, age, scopus, " + (", ".join(self.metrics_columns)) + ", puc, firsts, lasts "
             sql += "ORDER BY hindex is null, hindex DESC, age ASC, inv_name ASC "
             #self.st.success(sql)
-            self.db.cur.execute(sql, [self.year, self.year])
+            self.db.cur.execute(sql, [self.year])
             res = self.db.cur.fetchall()
             albo_columns = ["Autore", "Contratto", "Età", "SCOPUS ID", "Pubs", "Cit.", "H-Index", "Pubs 5 anni", "Cit. 5 anni", "H-Index 5 anni", "Pubs 10 anni", "Cit. 10 anni", "H-Index 10 anni", "Pubs con PUC", "Primi", "Ultimi", "Corr."]
             df = pd.DataFrame(res, columns=albo_columns)
@@ -390,4 +389,4 @@ class Scopus:
                 df.loc[i, "Email"] = calculate_email(row["Autore"])
 
             download_excel(self.st, df, "albo_" + datetime.now().strftime("%Y-%m-%d_%H.%M"))
-            self.st.dataframe(df, height=row_height)
+            show_df(self.st, df)

@@ -16,8 +16,8 @@ year = select_year(st)
 
 demo = Demo(st, db, year)
 if demo.get_update_details():
-    st.write("Ultimo aggiornamento: **" + str(demo.update_date) + " ("+ str(demo.update_days) + " giorni fa)**")
-    st.write("Ricercatori: **" + str(demo.update_count) + "**")
+    st.write("L'ultimo aggiornamento è del **" + str(demo.update_date) + " ("+ str(demo.update_days) + " giorni fa)**")
+    st.write("Teste totali (con Scopus ID): **" + str(demo.update_count_filter) + "**") # con Scopus ID e ancora attivi
     demo.get_all()
 else:
     st.error("Nessun dato presente")

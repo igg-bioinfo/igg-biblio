@@ -115,4 +115,4 @@ class Scival:
                 df.loc[i, "Email"] = self.calculate_email(row["Autore"])
 
             download_excel(self.st, df, "albo_" + datetime.now().strftime("%Y-%m-%d_%H.%M"))
-            self.st.dataframe(df, height=row_height)
+            show_df(self.st, df)

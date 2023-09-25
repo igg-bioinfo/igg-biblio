@@ -24,7 +24,7 @@ if inv_name:
     
 if investigator:
     if investigator.update_date:
-        st.write("Ultimo aggiornamento dell'anagrafica: **" + str(investigator.update_date) + "**")
+        st.write("Ultimo aggiornamento del profilo: **" + str(investigator.update_date) + "**")
     st.markdown("---")
 
     st.markdown("#### Dati del ricercatore")
@@ -40,7 +40,8 @@ if investigator:
 
     orcid_id = st.text_input("ORCID ID:", value=investigator.orcid_id if investigator.orcid_id else "")
     researcher_id = st.text_input("Researcher ID:", value=investigator.researcher_id if investigator.researcher_id else "")
-    investigator.save_ids(first_name, last_name, user_name, contract, unit, scopus_id, orcid_id, researcher_id)
+    is_enabled = st.checkbox("Utente abilitato:", value=investigator.is_enabled)
+    investigator.save_data(first_name, last_name, user_name, contract, unit, scopus_id, orcid_id, researcher_id, is_enabled)
     st.markdown("---")
 
     if investigator.first_name != "" or investigator.last_name != "":
@@ -70,13 +71,13 @@ if investigator:
         investigator.get_pucs(year_current)
     col_5years, col_10years, col_all = st.columns([1,1,1])
     with col_5years:
-        st.write("**Ultimi 5 anni**")
+        st.write("**Ultimi 5 anni (escluso anno corrente)**")
         set_prop(st, "H-index", investigator.hindex5)
         set_prop(st, "Pubblicazioni", investigator.n_pubs5)
         set_prop(st, "Citazioni", investigator.all_cited5)
         set_prop(st, "PUC", investigator.pucs5 if has_all_pucs else None)
     with col_10years:
-        st.write("**Ultimi 10 anni**")
+        st.write("**Ultimi 10 anni (escluso anno corrente)**")
         set_prop(st, "H-index", investigator.hindex10)
         set_prop(st, "Pubblicazioni", investigator.n_pubs10)
         set_prop(st, "Citazioni", investigator.all_cited10)

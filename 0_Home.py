@@ -4,7 +4,7 @@ from classes.db_psql import *
 from classes.user import *
 from classes.demo import *
 from classes.scopus import *
-from classes.pubmed import *
+#from classes.pubmed import *
 
 set_title(st)
 
@@ -18,16 +18,16 @@ if user.login():
     st.markdown("#### Anagrafica " + str(year))
     demo = Demo(st, db, year)
     if demo.get_update_details():
-        st.write("Ultimo aggiornamento: **" + str(demo.update_date) + " ("+ str(demo.update_days) + " giorni fa)**")
-        st.write("Ricercatori totali: **" + str(demo.update_count) + "**")
-        st.write("Ricercatori con Scopus ID e ancora attivi: **" + str(demo.update_count_filter) + "**")
+        st.write("L'ultimo aggiornamento del **" + str(demo.update_date) + " ("+ str(demo.update_days) + " giorni fa)**")
+        st.write("Teste totali: **" + str(demo.update_count) + "**")
+        st.write("Teste con Scopus ID: **" + str(demo.update_count_filter) + "**") # con Scopus ID e ancora attivi
     demo.upload_excel()
-    st.markdown("###### Autori con affiliazione Gaslini recuperati da Scopus")
-    scopus_autori = Scopus(st, db, year)
-    if scopus_autori.get_authors_update_details():
-        st.write("Ultimo aggiornamento: **" + str(scopus_autori.update_date) + " ("+ str(scopus_autori.update_days) + " giorni fa)**")
-        st.write("Ricercatori da Scopus: **" + str(scopus_autori.update_count_authors) + "**")
-    scopus_autori.import_authors()
+    #st.markdown("###### Autori con affiliazione Gaslini recuperati da Scopus")
+    #scopus_autori = Scopus(st, db, year)
+    #if scopus_autori.get_authors_update_details():
+    #    st.write("Ultimo aggiornamento: **" + str(scopus_autori.update_date) + " ("+ str(scopus_autori.update_days) + " giorni fa)**")
+    #    st.write("Ricercatori da Scopus: **" + str(scopus_autori.update_count_authors) + "**")
+    #scopus_autori.import_authors()
 
     def set_pubs_row(obj):
         if obj.get_update_details():
@@ -42,7 +42,7 @@ if user.login():
     if scopus_albo.get_metrics_update_details():
         st.write("Ultimo aggiornamento: **" + str(scopus_albo.update_date) + " ("+ str(scopus_albo.update_days) + " giorni fa)**")
         for updates in scopus_albo.metrics_update:
-            st.write("Ricercatori con metriche aggiornate al " + str(updates["update"]) + ": **" + str(updates["metrics"]) + "**")
+            st.write("L'aggiornamento del **" + str(updates["update"]) + "** ha coinvolto pubblicazioni e metriche di **" + str(updates["metrics"]) + "** ricercatori.")
     scopus_albo.import_metrics()
 
     st.markdown("---")
@@ -61,12 +61,15 @@ if user.login():
     set_pubs_row(scopus)
 
 
-    st.markdown("---")
-    st.markdown("#### PubMed - Pubblicazioni " + str(year))
-    pubmed = Pubmed(st, db, True, year)
-    set_pubs_row(pubmed)
+    #st.markdown("---")
+    #st.markdown("#### PubMed - Pubblicazioni " + str(year))
+    #pubmed = Pubmed(st, db, True, year)
+    #set_pubs_row(pubmed)
 
 db.close()
+
+
+
 #   conda activate streamlit
 #   streamlit run 0_Home.py
 #   sudo systemctl start biblio.service

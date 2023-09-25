@@ -11,6 +11,7 @@ min_scopus_pubs_year = 0
 min_scopus_metrics = 0
 min_scopus_authors = 0
 max_pucs = 1000
+pw_lenght = 7
 
 
 def hide_menu(st):
@@ -63,11 +64,11 @@ def strip_accents(text):
     return ''.join(c for c in unicodedata.normalize('NFKD', text) if unicodedata.category(c) != 'Mn')
 
 
-def download_excel(st, df, file_name):
+def download_excel(st, df, file_name, key = ''):
     import io
     towrite = io.BytesIO()
     df.to_excel(towrite, index=False, header=True) # encoding='utf-8'
-    st.download_button("Scarica in Excel", towrite, file_name + ".xlsx", "text/excel", key='download-excel')
+    st.download_button("Scarica in Excel", towrite, file_name + ".xlsx", "text/excel", key='download-excel' + key)
 
 
 def can_update(st, obj):
@@ -115,6 +116,14 @@ def admin_access(st, user):
         st.stop()
     
     
-def check_year(st, year_now, pub_year, last_years):
+def check_year(year_now, pub_year, last_years):
     year_start = year_now - last_years
     return True if last_years == 0 else (pub_year >= year_start and pub_year < year_now)
+
+def show_df(st, df):
+    df.set_index(df.columns[0], inplace=True)
+    if len(df) > 0:
+        st.write(str(len(df)) + " occorenze")
+        st.dataframe(df, height=row_height)
+    else:
+        st.write("Nessun dato trovato")

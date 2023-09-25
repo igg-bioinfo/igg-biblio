@@ -1,6 +1,7 @@
 import pandas as pd
 from datetime import datetime 
 from utils import *
+import random
 
 class User:
     st = None
@@ -9,6 +10,7 @@ class User:
     name = ""
     user_name = ""
     user_type = ""
+    is_enabled = None
     
     first_name = ""
     last_name = ""
@@ -19,8 +21,8 @@ class User:
     researcher_id = ""
 
     age = ""
-    update_date = ""
-    metrics_date = ""
+    update_date = "Nessuna data"
+    metrics_date = "Nessuna data"
     user_confirmed = False
     hindex = None
     n_pubs = None
@@ -44,13 +46,15 @@ class User:
         if name != "":
             self.name = name
             self.get_investigator()
-            self.db.cur.execute("SELECT user_id, user_name, user_type, name FROM users WHERE name = %s", [self.name])
+            self.db.cur.execute("SELECT user_id, user_name, user_type, name, is_enabled FROM users WHERE name = %s", [self.name])
             res = self.db.cur.fetchone()
             if res != None:
                 self.id = res[0]
-                self.user_name = res[1]
+                if res[1] != None and res[1] != '':
+                    self.user_name = res[1]
                 self.user_type = res[2]
                 self.name = res[3]
+                self.is_enabled = res[4]
         elif "logged_user" in self.st.session_state and self.st.session_state["logged_user"] != None:
             user = self.st.session_state["logged_user"]
             self.id = user['id']
@@ -64,32 +68,22 @@ class User:
     
     def get_investigator(self):
         sql = ""
-        sql += "SELECT " + age_field + " as age, "
-        sql += "CASE WHEN d.first_name IS NULL THEN i.first_name ELSE d.first_name END as first_name, "
-        sql += "CASE WHEN d.last_name IS NULL THEN i.last_name ELSE d.last_name END as last_name, "
-        sql += "CASE WHEN d.unit IS NULL THEN i.unit ELSE d.unit END as unit, "
-        sql += "CASE WHEN d.contract IS NULL THEN i.contract ELSE d.contract END as contract, "
-        sql += "CASE WHEN d.scopus_id IS NULL THEN i.scopus_id ELSE d.scopus_id END as scopus_id, " 
-        sql += "CASE WHEN d.orcid_id IS NULL THEN i.orcid_id ELSE d.orcid_id END as orcid_id, "
-        sql += "CASE WHEN d.researcher_id IS NULL THEN i.researcher_id ELSE d.researcher_id END as researcher_id, "
-        sql += "CASE WHEN d.inv_name IS NULL THEN '0' ELSE '1' END as user_confirmed, "
-        sql += "CASE WHEN d.update_date IS NULL THEN i.update_date ELSE d.update_date END as update_date "
-        sql += "FROM investigators i "
-        sql += "LEFT OUTER JOIN investigator_details d ON d.inv_name = i.inv_name "
-        sql += "WHERE i.inv_name = %s and update_year = %s "
+        sql += "SELECT * FROM view_invs "
+        sql += "WHERE inv_name = %s and update_year = %s "
         self.db.cur.execute(sql, [self.name, datetime.now().year])
         res = self.db.cur.fetchone()
         if res != None:
             self.age = int(res[0])
-            self.first_name = res[1] 
-            self.last_name = res[2] 
-            self.unit = res[3] 
-            self.contract = res[4] 
-            self.scopus_id = res[5] 
-            self.orcid_id = res[6] 
-            self.researcher_id = res[7] 
-            self.user_confirmed = res[8] == '1'
-            self.update_date = res[9] 
+            self.first_name = res[2] 
+            self.last_name = res[3] 
+            self.user_name = res[4]
+            self.unit = res[5] 
+            self.contract = res[6] 
+            self.scopus_id = res[7] 
+            self.orcid_id = res[8] 
+            self.researcher_id = res[9] 
+            self.user_confirmed = res[10] == '1'
+            self.update_date = res[11]
 
 
     def login(self):
@@ -139,16 +133,24 @@ class User:
             has_access = True 
         return has_access
 
+    def insert_new(self):
+        if self.id == 0:
+            password = ''.join(random.choice('0123456789abcdefghkjilmnopqrstuvxwz') for i in range(pw_lenght))
+            sql = ""
+            sql += "INSERT INTO users (user_name, user_password, user_type, name) VALUES (%s, %s, %s, %s) "
+            params = [self.user_name, password, "Investigator", self.name]
+            self.db.cur.execute(sql, params)
+            self.db.conn.commit()
 
     #-----------------------------------AGGIORNA IDS
-    def save_ids(self, first_name, last_name, user_name, contract, unit, scopus_id, orcid_id, researcher_id):   
-        bt_text = "Conferma gli IDs"
+    def save_data(self, first_name, last_name, user_name, contract, unit, scopus_id, orcid_id, researcher_id, is_enabled):   
+        bt_text = "Conferma i dati"
         if self.user_confirmed:
-            self.st.success("Gli IDs del ricercatore sono stati confermati manualmente")  
-            bt_text = "Aggiorna gli IDs"
+            self.st.success("I dati del ricercatore sono stati confermati manualmente")  
+            bt_text = "Aggiorna i dati"
         else:
-            self.st.warning("Controlla e conferma gli IDs")  
-        if self.st.button(bt_text, key="save_ids"):
+            self.st.warning("Controlla e conferma i dati del ricercatore")  
+        if self.st.button(bt_text, key="save_data"):
             with self.st.spinner():
                 update_date = datetime.date(datetime.now())
                 sql = "UPDATE investigator_details SET first_name=%s, last_name=%s, contract=%s, unit=%s, scopus_id=%s, orcid_id=%s, researcher_id=%s, update_date=%s WHERE inv_name=%s "
@@ -162,9 +164,9 @@ class User:
                     sql = "call  update_scopus_pucs(%s, %s) "
                     self.db.cur.execute(sql, [self.scopus_id, scopus_id])
                     self.db.conn.commit()
-                if user_name != '' and user_name != self.user_name:
-                    sql = "UPDATE user SET user_name=%s, WHERE name=%s "
-                    self.db.cur.execute(sql, [user_name, self.name])
+                if user_name != '' and (user_name != self.user_name or is_enabled != self.is_enabled):
+                    sql = "UPDATE users SET user_name=%s, is_enabled=%s WHERE name=%s "
+                    self.db.cur.execute(sql, [user_name, is_enabled, self.name])
                     self.db.conn.commit()
                 self.st.experimental_rerun()
 
@@ -214,10 +216,8 @@ class User:
                 res = self.db.cur.fetchall()
                 if len(res) > 0 and len(res) > 0 and res[0][0] != None:
                     df = pd.DataFrame(res, columns=["EID", "DOI", "PUBMED ID", "Titolo pubblicazione", "Data", "Tipo", "Cit.", "PUC", "Primo", "Ultimo", "Corr."])
-                    df.set_index('EID', inplace=True)
                     download_excel(self.st, df, "scopus_pubs_" + self.scopus_id + "_" + str(year) + "_" + datetime.now().strftime("%Y-%m-%d_%H.%M"))
-                    self.st.write(str(len(df)) + " Righe")
-                    self.st.dataframe(df, height=row_height)
+                    show_df(self.st, df)
 
 
     #-----------------------------------PUC
@@ -283,15 +283,15 @@ class User:
         lasts10 = 0
         corrs10 = 0
         for r in res:
-            if check_year(self.st, year, r[0], 5):
+            if check_year(year, r[0], 5):
                 firsts5 += self.check_fields_value([1,2,3], r)
                 lasts5 += self.check_fields_value([4,5,6], r)
                 corrs5 += self.check_fields_value([7,8,9,10,11], r)
-            if check_year(self.st, year, r[0], 10):
+            if check_year(year, r[0], 10):
                 firsts10 +=  self.check_fields_value([1,2,3], r)
                 lasts10 += self.check_fields_value([4,5,6], r)
                 corrs10 += self.check_fields_value([7,8,9,10,11], r)
-            if check_year(self.st, year, r[0], 0):
+            if check_year(year, r[0], 0):
                 firsts += self.check_fields_value([1,2,3], r)
                 lasts += self.check_fields_value([4,5,6], r)
                 corrs += self.check_fields_value([7,8,9,10,11], r)
