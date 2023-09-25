@@ -13,4 +13,10 @@ user = User(st, db)
 user.is_logged()
 
 requests = User_request(st, db)
-requests.show_pendings()
+requests.show_by_status(0)
+
+st.markdown("---")
+requests.show_by_status(1)
+
+st.markdown("---")
+requests.show_by_status(2)

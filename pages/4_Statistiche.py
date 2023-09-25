@@ -15,7 +15,12 @@ user.is_logged()
 year = select_year(st)
 stats = Statistics(st, db, year)
 stats.get_stats_units(0)
+
+st.markdown("---")
 stats.get_stats_units(40)
+
+st.markdown("---")
+st.markdown("### Membri delle unità")
 unit = stats.select_units()
 stats.get_invs_by_unit(unit)
 

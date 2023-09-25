@@ -363,7 +363,7 @@ class Scopus:
             sql += (", ".join(self.metrics_columns)) + ", "
             sql += "(CASE WHEN pubs - (CASE WHEN pubs_puc IS NULL THEN 0 ELSE pubs_puc END) > 0 THEN (CASE WHEN pubs_puc IS NULL THEN 0 ELSE pubs_puc END)::text ELSE (CASE WHEN pubs IS NULL OR pubs = 0 THEN 'Nessun dato' ELSE 'OK' END) END) as puc "
             sql += "FROM view_invs i "
-            sql += "LEFT OUTER JOIN scopus_metrics m ON m.author_scopus = i.scopus_id "
+            sql += "LEFT OUTER JOIN scopus_metrics m ON m.author_scopus = i.scopus_id and m.update_year = %s "
             sql += "LEFT OUTER JOIN (select author_scopus, count(eid) as pubs_puc from scopus_pubs_all WHERE eid IN (SELECT DISTINCT eid FROM scopus_pucs) group by author_scopus) p "
             sql += "ON p.author_scopus = i.scopus_id "
             sql += "WHERE i.update_year = %s "
@@ -379,8 +379,7 @@ class Scopus:
             sql += "LEFT OUTER JOIN scopus_pucs c on (l.scopus = c.corr1 or l.scopus = c.corr2 or l.scopus = c.corr3 or l.scopus = c.corr4 or l.scopus = c.corr5) "
             sql += "GROUP BY inv_name, contract, age, scopus, " + (", ".join(self.metrics_columns)) + ", puc, firsts, lasts "
             sql += "ORDER BY hindex is null, hindex DESC, age ASC, inv_name ASC "
-            #self.st.success(sql)
-            self.db.cur.execute(sql, [self.year])
+            self.db.cur.execute(sql, [self.year, self.year])
             res = self.db.cur.fetchall()
             albo_columns = ["Autore", "Contratto", "Età", "SCOPUS ID", "Pubs", "Cit.", "H-Index", "Pubs 5 anni", "Cit. 5 anni", "H-Index 5 anni", "Pubs 10 anni", "Cit. 10 anni", "H-Index 10 anni", "Pubs con PUC", "Primi", "Ultimi", "Corr."]
             df = pd.DataFrame(res, columns=albo_columns)
