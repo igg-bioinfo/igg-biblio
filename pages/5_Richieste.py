@@ -1,5 +1,5 @@
 import streamlit as st
-from utils import set_title, select_year
+from utils import *
 from classes.db_psql import *
 from classes.user import *
 from classes.user_request import *

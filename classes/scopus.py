@@ -6,10 +6,10 @@ from utils import *
 import json
 
 class Scopus:
-    columns = ["eid", "doi", "pm_id", "issn", "title", "pub_date", "pub_type", "cited", "author_name", "author_scopus"]
+    pubs_cols_n = 9
+    columns = ["eid", "doi", "pm_id", "issn", "title", "pub_date", "pub_type", "cited", "pub_status", "author_name", "author_scopus"]
     metrics_columns = ["pubs", "allcited", "hindex", "pubs5", "allcited5", "hindex5", "pubs10", "allcited10", "hindex10"]
-    excel_columns = ["EID", "DOI", "PubMed", "ISSN", "Titolo", "Data", "Tipo", "Cit.", "Autore", "SCOPUS"]
-    is_gaslini = None
+    excel_columns = ["EID", "DOI", "PubMed", "ISSN", "Titolo", "Data", "Tipo", "Cit.", "Pubblicato", "Autore", "SCOPUS"]
     year = 0
     update_date = None
     update_days = None
@@ -42,8 +42,9 @@ class Scopus:
             self.db.cur.execute(sql, [scopus_type, self.year])
             res = self.db.cur.fetchall()
             df = pd.DataFrame(res, columns=["SCOPUS ID", "Autore", "Aggiornamento fallito"])
+            download_excel(self.st, df, "error_pubs_" + datetime.now().strftime("%Y-%m-%d_%H.%M"), 'failed')
+            show_df(self.st, df)
             if len(df) > 0:
-                show_df(self.st, df)
                 if self.st.button("Riprova ad importare le richieste fallite"):
                     for i, row in df.iterrows():
                         self.import_by_year(row["SCOPUS ID"])
@@ -128,7 +129,7 @@ class Scopus:
         with self.st.spinner():
             sql = "SELECT update_date, COUNT(pub_authors) FROM scopus_pubs_all WHERE "
             sql += "EXTRACT('Year' from TO_DATE(pub_date,'YYYY-MM-DD')) = %s "
-            sql += "GROUP BY update_date, doi "
+            sql += "GROUP BY update_date, eid "
             self.db.cur.execute(sql, [self.year])
             res = self.db.cur.fetchall()
             df = pd.DataFrame(res, columns=["update", "authors"])
@@ -152,20 +153,20 @@ class Scopus:
 
     def get_pubs_authors_for_year(self):
         with self.st.spinner():
+            cols_pub = self.columns[:self.pubs_cols_n]
+            excel_cols_pub = self.excel_columns[:self.pubs_cols_n]
             cols = ""
-            for col in self.columns:
+            for col in cols_pub:
                 cols += col + ", "
             cols = cols[:-2]
-            sql = "SELECT " + cols + " FROM scopus_pubs_all  "
+            sql = "SELECT DISTINCT " + cols + " FROM scopus_pubs_all  "
             sql += "WHERE EXTRACT('Year' from TO_DATE(pub_date,'YYYY-MM-DD')) = %s "
-            if self.is_gaslini:
-                sql += "AND is_gaslini = true "
             sql += "ORDER BY doi, pm_id "
             self.db.cur.execute(sql, [self.year])
             res = self.db.cur.fetchall()
-            df = pd.DataFrame(res, columns=self.excel_columns)
-            download_excel(self.st, df, "scopus_pubs_" + str(self.year) + "_" + datetime.now().strftime("%Y-%m-%d_%H.%M"))
-            show_df(self.st, df)
+            df = pd.DataFrame(res, columns=excel_cols_pub)
+            download_excel(self.st, df, "scopus_pubs_" + str(self.year) + "_" + datetime.now().strftime("%Y-%m-%d_%H.%M"), 'scopus_pubs')
+            show_df(self.st, df) 
 
 
     #-----------------------------------METRICHE

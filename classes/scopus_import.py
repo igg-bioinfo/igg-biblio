@@ -67,7 +67,19 @@ class Scopus_import:
             pub_dict["pub_date"] = pub["prism:coverDate"] if "prism:coverDate" in pub else None
             pub_dict["pub_type"] = pub["subtypeDescription"] if "subtypeDescription" in pub else None #Erratum è da far fuori
             pub_dict["cited"] = int(pub["citedby-count"]) if "citedby-count" in pub else None
-            pub_dict["pub_date"] = pub["prism:coverDate"] if "prism:coverDate" in pub else None
+
+            #ESCLUSI GLI ARTICOLI SENZA PAGE_RANGE O NUMERO ARTICOLO QUINDI SONO AHEAD OF PRINT (?)
+            page_range = "prism:pageRange" in pub and str(pub["prism:pageRange"]) != ''
+            article_n = "article-number" in pub and str(pub["article-number"]) != ''
+            pub_dict["pub_status"] = page_range or article_n
+            self.st.error(pub_dict["eid"])
+            #if page_range:
+            #    self.st.success(str(pub["prism:pageRange"]) if page_range else 'No page range')
+            #if article_n:
+            #    self.st.success(str(pub["article-number"]) if page_range else 'No article number')
+            #self.st.success(pub_dict["pub_status"])
+            #if page_range == False and article_n == False:
+            #    continue
             pubs.append(pub_dict)
         return [pubs, start + pubs_count, pubs_total]
 

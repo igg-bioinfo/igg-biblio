@@ -51,15 +51,6 @@ class Statistics:
         download_excel(self.st, df, "unit_" + datetime.now().strftime("%Y-%m-%d_%H.%M"), "_unit")
         show_df(self.st, df)
 
-    def split_unit(self, df):
-        df['Tipo unità'] = ''
-        for i, row in df.iterrows():
-            row = row.copy()
-            split = row['Unità'].split(' (')
-            df.loc[i, 'Unità'] = split[0]
-            if len(split) > 1:
-                df.loc[i, 'Tipo unità'] = split[1].replace(')', '')
-
 
     #-----------------------------------STATISTICHE
     def get_stats_units(self, filter_age = 0):
@@ -86,7 +77,7 @@ class Statistics:
         self.db.cur.execute(sql, [self.year])
         res = self.db.cur.fetchall()
         df = pd.DataFrame(res, columns=["Unità", "N° teste", "Media H-index 5", "Media H-index 10", "Media H-index"])
-        self.split_unit(df)
+        df = split_unit(df)
         df = df[["Unità", 'Tipo unità', "N° teste", "Media H-index 5", "Media H-index 10", "Media H-index"]]
         filter_msg = " e con età minore o uguale a " + str(filter_age) if filter_age > 0 else ""
         self.st.markdown("### Metriche per unità" + filter_msg + "")

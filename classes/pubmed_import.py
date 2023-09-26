@@ -90,9 +90,13 @@ class Pubmed_import:
             if art_id.get('IdType') == 'pmc':
                 pmcid = art_id.text.replace('PMC', '')
                 break
-        self.pub_count += 1
 
-        return {"pm_id": pmid, "doi": doi, "journal": journal, "issn": issn, "title": title, "pub_date": pdate, "pmc_id": pmcid }
+        status = xml.find('PubmedData/PublicationStatus').text
+        if status == "aheadofprint":
+            return False
+        
+        self.pub_count += 1
+        return {"pm_id": pmid, "doi": doi, "journal": journal, "issn": issn, "title": title, "pub_date": pdate, "pmc_id": pmcid, "status": status }
 
 
     def get_authors(self, xml):
@@ -162,6 +166,7 @@ class Pubmed_import:
             if xml_pubs:
                 for xml_pub in xml_pubs:
                     pub_dict = self.get_pubblication(xml_pub)
-                    pub_dict['authors'] = self.get_authors(xml_pub)
-                    pubs.append(pub_dict)
+                    if pub_dict != False:
+                        pub_dict['authors'] = self.get_authors(xml_pub)
+                        pubs.append(pub_dict)
         return pubs

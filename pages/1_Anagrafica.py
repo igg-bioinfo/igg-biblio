@@ -1,5 +1,5 @@
 import streamlit as st
-from utils import set_title, select_year
+from utils import *
 from classes.db_psql import *
 from classes.user import *
 from classes.demo import *
@@ -12,12 +12,12 @@ db.connect()
 user = User(st, db)
 user.is_logged()
 
-year = select_year(st)
+year = select_year(st, db)
 
 demo = Demo(st, db, year)
 if demo.get_update_details():
     st.write("L'ultimo aggiornamento è del **" + str(demo.update_date) + " ("+ str(demo.update_days) + " giorni fa)**")
-    st.write("Teste totali (con Scopus ID): **" + str(demo.update_count_filter) + "**") # con Scopus ID e ancora attivi
+    st.write("Teste con Scopus ID: **" + str(demo.update_count_filter) + "**") # con Scopus ID e ancora attivi
     demo.get_all()
 else:
     st.error("Nessun dato presente")

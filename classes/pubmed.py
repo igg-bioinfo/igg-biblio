@@ -7,11 +7,8 @@ from utils import *
 class Pubmed:
     st = None
     db = None
-    columns = ["author_orcid",
-        "author_name",
-        "is_person",
-        "position",
-        "corresponding",
+    pubs_cols_n = 7
+    columns = [
         "pm_id",
         "doi",
         "journal",
@@ -19,12 +16,13 @@ class Pubmed:
         "title",
         "pub_date",
         "pmc_id",
+        "author_orcid",
+        "author_name",
+        "is_person",
+        "position",
+        "corresponding",
         "affiliations"]
-    excel_columns = ["ORCID",
-        "Autore",
-        "Persona",
-        "Posizione",
-        "Corresponding",
+    excel_columns = [
         "PUBMED",
         "DOI",
         "Rivista",
@@ -32,6 +30,11 @@ class Pubmed:
         "Titolo",
         "Data",
         "PMC",
+        "ORCID",
+        "Autore",
+        "Persona",
+        "Posizione",
+        "Corresponding",
         "Affiliazioni"]
     is_gaslini = None
     year = 0
@@ -39,7 +42,7 @@ class Pubmed:
     update_days = None
     update_count_authors = None
     update_count_pubs = None
-    min_days = 7
+    min_days = min_pubmed
 
 
     def __init__(self, st, db, is_gaslini = True, year = None):
@@ -54,7 +57,7 @@ class Pubmed:
             sql = "SELECT update_date, COUNT(pub_authors) FROM pubmed_pubs WHERE "
             if self.is_gaslini:
                 sql += "lower(affiliations::text) like '%%gaslini%%' and "
-            sql += "update_year = %s GROUP BY update_date, pm_id "
+            sql += " EXTRACT('Year' from TO_DATE(pub_date,'YYYY-MM-DD')) = %s GROUP BY update_date, pm_id "
             self.db.cur.execute(sql, [self.year])
             res = self.db.cur.fetchall()
             df = pd.DataFrame(res, columns=["update", "authors"])
@@ -103,17 +106,55 @@ class Pubmed:
 
     def get_pubs_authors_for_year(self):
         with self.st.spinner():
+            cols_pub = self.columns[:self.pubs_cols_n]
+            excel_cols_pub = self.excel_columns[:self.pubs_cols_n]
             cols = ""
-            for col in self.columns:
+            for col in cols_pub:
                 cols += col + ", "
             cols = cols[:-2]
-            sql = "SELECT " + cols + " FROM pubmed_pubs WHERE "
+            sql = "SELECT DISTINCT " + cols + " FROM pubmed_pubs WHERE "
             if self.is_gaslini:
                 sql += "lower(affiliations::text) like '%%gaslini%%' and "
-            sql += "update_year = %s ORDER BY pub_date, pm_id, position "
+            sql += " EXTRACT('Year' from TO_DATE(pub_date,'YYYY-MM-DD')) = %s ORDER BY pub_date DESC, pm_id "
             self.db.cur.execute(sql, [self.year])
             res = self.db.cur.fetchall()
-            df = pd.DataFrame(res, columns=self.excel_columns)
+            df = pd.DataFrame(res, columns=excel_cols_pub)
             download_excel(self.st, df, "pubmed_author_pubs_" + datetime.now().strftime("%Y-%m-%d_%H.%M"))
-            self.st.write(str(len(df)) + " Righe")
+            show_df(self.st, df)
+
+
+    def get_no_scopus_pubs_author_for_year(self, author, scopus_id):
+        with self.st.spinner():
+            cols_pub = self.columns[:self.pubs_cols_n]
+            excel_cols_pub = self.excel_columns[:self.pubs_cols_n]
+            cols = ""
+            for col in cols_pub:
+                cols += col + ", "
+            cols = cols[:-2]
+            sql = "SELECT DISTINCT " + cols + " FROM pubmed_pubs WHERE pm_id in ("
+            sql += "select pm_id from pubs_not_in_scopus_per_author(%s, %s)" #pubs_not_in_scopus(%s)
+            sql += ") and author_name like '%%" + author + "%%' and EXTRACT('Year' from TO_DATE(pub_date,'YYYY-MM-DD')) = %s "
+            sql += "ORDER BY pub_date DESC, pm_id "
+            self.db.cur.execute(sql, [self.year, scopus_id, self.year])
+            res = self.db.cur.fetchall()
+            df = pd.DataFrame(res, columns=excel_cols_pub)
+            download_excel(self.st, df, "pubmed_author_pubs_" + datetime.now().strftime("%Y-%m-%d_%H.%M"), 'no_scopus_pubmed_pubs')
+            show_df(self.st, df)
+
+    def get_no_scopus_pubs_authors_for_year(self):
+        with self.st.spinner():
+            cols_pub = self.columns[:self.pubs_cols_n]
+            excel_cols_pub = self.excel_columns[:self.pubs_cols_n]
+            cols = ""
+            for col in cols_pub:
+                cols += col + ", "
+            cols = cols[:-2]
+            sql = "SELECT DISTINCT " + cols + " FROM pubmed_pubs WHERE pm_id in ("
+            sql += "select pm_id from pubs_not_in_scopus(%s)"
+            sql += ") and EXTRACT('Year' from TO_DATE(pub_date,'YYYY-MM-DD')) = %s "
+            sql += "ORDER BY pub_date DESC, pm_id "
+            self.db.cur.execute(sql, [self.year, self.year])
+            res = self.db.cur.fetchall()
+            df = pd.DataFrame(res, columns=excel_cols_pub)
+            download_excel(self.st, df, "pubmed_author_pubs_" + datetime.now().strftime("%Y-%m-%d_%H.%M"), 'no_scopus_pubmed_pubs')
             show_df(self.st, df)

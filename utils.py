@@ -65,10 +65,11 @@ def strip_accents(text):
 
 
 def download_excel(st, df, file_name, key = ''):
-    import io
-    towrite = io.BytesIO()
-    df.to_excel(towrite, index=False, header=True) # encoding='utf-8'
-    st.download_button("Scarica in Excel", towrite, file_name + ".xlsx", "text/excel", key='download-excel' + key)
+    if len(df) > 0:
+        import io
+        towrite = io.BytesIO()
+        df.to_excel(towrite, index=False, header=True) # encoding='utf-8'
+        st.download_button("Scarica in Excel", towrite, file_name + ".xlsx", "text/excel", key='download-excel' + key)
 
 
 def can_update(st, obj):
@@ -83,11 +84,17 @@ def can_update(st, obj):
 
 
 all_years = "Intera carriera"
-def select_year(st, all: bool = False, label: str = "Anno selezionato:"):
-    years = [datetime.now().year, datetime.now().year - 1]
+def select_year(st, db, table = '', all: bool = False, label: str = "Anno selezionato:"):
+    if table == '':
+        years = [datetime.now().year, datetime.now().year - 1]
+    else:
+        sql = "select distinct EXTRACT('Year' from TO_DATE(pub_date,'YYYY-MM-DD')) as pub_year from " + table + " ORDER BY EXTRACT('Year' from TO_DATE(pub_date,'YYYY-MM-DD')) DESC"
+        db.cur.execute(sql)
+        res = db.cur.fetchall()
+        years = [int(r[0]) for r in res]
     if all:
         years[0:0] = [all_years]
-    return st.selectbox('Anno selezionato:', years)
+    return st.selectbox(label, years)
 
 
 def set_prop(st, label: str, value: any):
@@ -126,4 +133,16 @@ def show_df(st, df):
         st.write(str(len(df)) + " occorenze")
         st.dataframe(df, height=row_height)
     else:
-        st.write("Nessun dato trovato")
+        st.error("Nessun dato trovato")
+
+def split_unit(df):
+    df = df.copy()
+    df['Tipo unità'] = ''
+    for i, row in df.iterrows():
+        row = row.copy()
+        if row['Unità'] != None:
+            split = row['Unità'].split(' (')
+            df.loc[i, 'Unità'] = split[0]
+            if len(split) > 1:
+                df.loc[i, 'Tipo unità'] = split[1].replace(')', '')
+    return df

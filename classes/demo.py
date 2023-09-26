@@ -135,6 +135,7 @@ class Demo:
         with self.st.spinner():
             res = self.get_all_from_db()
             df = pd.DataFrame(res, columns=self.excel_columns, index=None)
+            df = split_unit(df)
             df_grid = df.drop("Nascita", axis=1).drop("Workflow", axis=1).reset_index(drop=True)
             download_excel(self.st, df_grid, "investigators_" + datetime.now().strftime("%Y-%m-%d_%H.%M"))
             show_df(self.st, df_grid)

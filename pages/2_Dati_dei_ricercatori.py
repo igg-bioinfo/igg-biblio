@@ -1,9 +1,10 @@
 import streamlit as st
-from utils import set_title, select_year
+from utils import *
 from classes.db_psql import *
 from classes.user import *
 from classes.demo import *
 from classes.scopus import *
+from classes.pubmed import *
 
 title = "Profilo ricercatore"
 set_title(st, title)
@@ -105,10 +106,19 @@ if investigator:
         st.error("Scopus id non presente")
     st.markdown("---")
 
+    year_pubs = select_year(st, db, 'scopus_pubs_all', True)
     st.markdown("#### Pubblicazioni di Scopus")
     st.write("Pubblicazioni ricavate unicamente dalla banca dati Scopus")
-    year_pubs = select_year(st, True)
     investigator.get_pubs(year_pubs)
+    st.markdown("---")
+
+    st.markdown("#### Pubblicazioni di Pubmed")
+    st.write("Pubblicazioni di Pubmed non presenti nella banca dati Scopus")
+    if year_pubs == all_years:
+        st.warning("Seleziona un anno per vedere le pubblicazioni di Pubmed non presenti nella banca dati Scopus")
+    else:
+        pubmed = Pubmed(st, db, True, year_pubs)
+        pubmed.get_no_scopus_pubs_author_for_year(last_name, scopus_id)
 
 db.close()
 

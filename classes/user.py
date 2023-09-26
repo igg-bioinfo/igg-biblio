@@ -200,7 +200,7 @@ class User:
                           self.scopus_id, self.scopus_id, self.scopus_id, 
                           self.scopus_id, self.scopus_id, self.scopus_id, self.scopus_id, self.scopus_id,
                           self.scopus_id]
-                sql = "select s.eid, s.doi, s.pm_id, s.title, s.pub_date, s.pub_type, s.cited, "
+                sql = "select s.eid, s.doi, s.pm_id, s.title, s.pub_date, s.pub_type, s.pub_status, s.cited, "
                 sql += "CASE WHEN p.eid is not null THEN true ELSE false END as PUC, "
                 sql += "CASE WHEN p.first1 = %s or p.first2 = %s or p.first3 = %s THEN true ELSE false END as Primo, "
                 sql += "CASE WHEN p.last1 = %s or p.last2 = %s or p.last3 = %s THEN true ELSE false END as Ultimo, "
@@ -215,9 +215,11 @@ class User:
                 self.db.cur.execute(sql, params)
                 res = self.db.cur.fetchall()
                 if len(res) > 0 and len(res) > 0 and res[0][0] != None:
-                    df = pd.DataFrame(res, columns=["EID", "DOI", "PUBMED ID", "Titolo pubblicazione", "Data", "Tipo", "Cit.", "PUC", "Primo", "Ultimo", "Corr."])
-                    download_excel(self.st, df, "scopus_pubs_" + self.scopus_id + "_" + str(year) + "_" + datetime.now().strftime("%Y-%m-%d_%H.%M"))
+                    df = pd.DataFrame(res, columns=["EID", "DOI", "PUBMED ID", "Titolo pubblicazione", "Data", "Tipo", "Pubblicato", "Cit.", "PUC", "Primo", "Ultimo", "Corr."])
+                    download_excel(self.st, df, "scopus_pubs_" + self.scopus_id + "_" + str(year) + "_" + datetime.now().strftime("%Y-%m-%d_%H.%M"), 'scopus_pubs')
                     show_df(self.st, df)
+                else:
+                    self.st.error("Nessun dato presente")
 
 
     #-----------------------------------PUC
