@@ -15,13 +15,17 @@ user = User(st, db)
 user.is_logged()
 
 
-year = select_year(st)
+year = select_year(st, db, 'scopus_pubs_all')
 scopus = Scopus(st, db, year)
 if scopus.get_metrics_update_details():
     st.write("Ultimo aggiornamento: **" + str(scopus.update_date) + " ("+ str(scopus.update_days) + " giorni fa)**")
     for updates in scopus.metrics_update:
         st.write("L'aggiornamento del **" + str(updates["update"]) + "** ha coinvolto pubblicazioni e metriche di **" + str(updates["metrics"]) + "** ricercatori.")
     scopus.get_albo()
+
+    st.markdown("---")
+    st.markdown("### Albo degli under 40")
+    scopus.get_albo(40)
 else:
     st.error("Nessun dato presente")
 

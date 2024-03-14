@@ -92,6 +92,9 @@ def select_year(st, db, table = '', all: bool = False, label: str = "Anno selezi
         db.cur.execute(sql)
         res = db.cur.fetchall()
         years = [int(r[0]) for r in res]
+        if datetime.now().year not in years:
+            years.append(datetime.now().year)
+            years.sort(reverse= True)
     if all:
         years[0:0] = [all_years]
     return st.selectbox(label, years)
@@ -127,8 +130,9 @@ def check_year(year_now, pub_year, last_years):
     year_start = year_now - last_years
     return True if last_years == 0 else (pub_year >= year_start and pub_year < year_now)
 
-def show_df(st, df):
-    df.set_index(df.columns[0], inplace=True)
+def show_df(st, df, left_index = False):
+    if left_index == False:
+        df.set_index(df.columns[0], inplace=True)
     if len(df) > 0:
         st.write(str(len(df)) + " occorenze")
         st.dataframe(df, height=row_height)

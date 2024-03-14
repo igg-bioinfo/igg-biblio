@@ -354,7 +354,7 @@ class Scopus:
 
 
     #-----------------------------------ALBO
-    def get_albo(self, only_scopus: bool = True):
+    def get_albo(self, under_age = False, only_scopus: bool = True):
         with self.st.spinner():
             sql = ""
             sql += "SELECT l.*, COUNT(c.eid) as corrs FROM ( "
@@ -370,6 +370,8 @@ class Scopus:
             sql += "WHERE i.update_year = %s "
             if only_scopus:
                 sql += " and i.scopus_id IS NOT NULL "
+            if under_age:
+                sql += " and i.age <= " + str(under_age) + " "
             sql += ") s "
             sql += "LEFT OUTER JOIN scopus_pucs f on (s.scopus = f.first1 or s.scopus = f.first2 or s.scopus = f.first3) "
             sql += "GROUP BY inv_name, contract, age, scopus, " + (", ".join(self.metrics_columns)) + ", puc "
@@ -388,5 +390,5 @@ class Scopus:
             for i, row in df.iterrows():
                 df.loc[i, "Email"] = calculate_email(row["Autore"])
 
-            download_excel(self.st, df, "albo_" + datetime.now().strftime("%Y-%m-%d_%H.%M"))
-            show_df(self.st, df)
+            download_excel(self.st, df, "albo_" + datetime.now().strftime("%Y-%m-%d_%H.%M"), 'albo_' + str(under_age))
+            show_df(self.st, df, True)
