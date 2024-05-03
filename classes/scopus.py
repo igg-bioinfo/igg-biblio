@@ -371,7 +371,7 @@ class Scopus:
             if only_scopus:
                 sql += " and i.scopus_id IS NOT NULL "
             if under_age:
-                sql += " and i.age <= " + str(under_age) + " "
+                sql += " and i.age < " + str(under_age) + " "
             sql += ") s "
             sql += "LEFT OUTER JOIN scopus_pucs f on (s.scopus = f.first1 or s.scopus = f.first2 or s.scopus = f.first3) "
             sql += "GROUP BY inv_name, contract, age, scopus, " + (", ".join(self.metrics_columns)) + ", puc "

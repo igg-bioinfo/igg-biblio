@@ -66,7 +66,6 @@ class Demo:
         if submitted and uploaded_file is not None:
             with self.st.spinner():
                 self.import_excel(uploaded_file)
-                self.st.experimental_rerun()
 
 
     def import_excel(self, excel):
@@ -88,14 +87,14 @@ class Demo:
                 sql_fields += ("email" if col == "user_name" else col) + ", "
                 sql_values += "%s, "
         sql_fields += "update_date, update_year"
-        sql_values += "%s, %s, %s)"
+        sql_values += "%s, %s)"
         update_date = datetime.date(datetime.now())
         for i, row in df_excel.iterrows():
             name = row["Cognome"].strip().title() + " " + row["Nome"].strip().title()
             params = [name]
             for col in self.import_columns:
                 value = row[col]
-                if str(value) in ["N.A.", "N.A", "nan"]:
+                if str(value) in ["N.A.", "N.A", "nan", "NaT"]:
                     value = None
                 elif "e-mail" in col or col in ["ORCID", "ResearchID", "AuthorID Scopus"]:
                     value = value.strip().lower()
@@ -106,14 +105,15 @@ class Demo:
                 params.append(value)
             params.append(update_date)
             params.append(self.year)
-            #self.st.success(sql_fields + sql_values)
-            #self.st.success(params)
+            self.st.success(sql_fields + sql_values)
+            self.st.success(params)
             self.db.cur.execute(sql_fields + sql_values, params)
             self.db.conn.commit()
             user = User(self.st, self.db, name)
             user.insert_new()
         self.db.close()
         self.db.connect()
+        self.st.experimental_rerun()
     
 
     def get_all_from_db(self, only_scopus = False):

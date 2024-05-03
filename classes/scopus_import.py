@@ -72,7 +72,7 @@ class Scopus_import:
             page_range = "prism:pageRange" in pub and str(pub["prism:pageRange"]) != ''
             article_n = "article-number" in pub and str(pub["article-number"]) != ''
             pub_dict["pub_status"] = page_range or article_n
-            self.st.error(pub_dict["eid"])
+            #self.st.error(pub_dict["eid"])
             #if page_range:
             #    self.st.success(str(pub["prism:pageRange"]) if page_range else 'No page range')
             #if article_n:

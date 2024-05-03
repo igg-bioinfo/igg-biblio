@@ -29,7 +29,7 @@ class Statistics:
         return self.st.selectbox('Unità selezionata:', units)
     
     def get_invs_by_unit(self, unit):
-        params = [self.year]
+        params = [self.year, self.year]
         sql = ""
         sql += "select i.inv_name, i.age, i.scopus_id, "
         sql += "case when hindex is null then 0 else hindex end hindex, "
@@ -37,7 +37,7 @@ class Statistics:
         sql += "case when hindex10 is null then 0 else hindex10 end hindex10, "
         sql += "case when i.date_end is null or i.date_end > now() then true else false end is_active "
         sql += "from view_invs i "
-        sql += "left outer join scopus_metrics m on m.author_scopus = i.scopus_id "
+        sql += "left outer join scopus_metrics m on m.author_scopus = i.scopus_id and m.update_year = %s "
         sql += "where i.update_year = %s and "
         if unit == self.no_units:
             sql += "unit is null or unit = '' "
