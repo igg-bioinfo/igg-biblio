@@ -95,7 +95,7 @@ class User:
                 del self.st.session_state["username"]
                 del self.st.session_state["password"]
                 self.st.session_state["logged_user"] = {'id': res[0], 'name': res[3], 'user_name': res[1], 'user_type': res[2]}
-                self.st.experimental_rerun()
+                self.st.rerun()
             else:
                 self.st.error("Credenziali errate")
                 self.st.session_state["logged_user"] = None
@@ -118,7 +118,7 @@ class User:
             self.st.markdown("Profilo: **" + self.name + "**")
             if self.st.button("Logout"):
                 self.st.session_state["logged_user"] = None
-                self.st.experimental_rerun()
+                self.st.rerun()
 
 
     def is_logged(self):
@@ -168,7 +168,7 @@ class User:
                     sql = "UPDATE users SET user_name=%s, is_enabled=%s WHERE name=%s "
                     self.db.cur.execute(sql, [user_name, is_enabled, self.name])
                     self.db.conn.commit()
-                self.st.experimental_rerun()
+                self.st.rerun()
 
 
     #-----------------------------------METRICHE BASE

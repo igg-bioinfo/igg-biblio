@@ -78,11 +78,11 @@ class User_request:
                 with col_1:
                     if self.st.button('Accetta la richiesta e crea un utente', key="request_accept"):
                         self.update_status(1)
-                        self.st.experimental_rerun()
+                        self.st.rerun()
                 with col_2:
                     if self.st.button('Rifiuta la richiesta', key="request_refused"):
                         self.update_status(2)
-                        self.st.experimental_rerun()
+                        self.st.rerun()
         else:
             self.st.markdown("#### Richieste " + ("accettate" if status == 1 else "rifiutate"))
             show_df(self.st, df)

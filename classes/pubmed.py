@@ -77,6 +77,7 @@ class Pubmed:
                 self.db.cur.execute("DELETE FROM pubmed_pubs WHERE update_year = %s;",  [self.year])
                 self.db.conn.commit()
                 importer = Pubmed_import(self.st, self.year)
+                #RECUPERO TUTTE LE PUBBLICAZIONI CON AFFILIAZIONE GASLINI PER L?ANNO SELEZIONATO
                 for pub in importer.get_pubs():
                     for author in pub["authors"]:
                         params = []
@@ -101,7 +102,7 @@ class Pubmed:
                     self.st.error(importer.error)
                     return False
                 self.db.conn.commit()
-                self.st.experimental_rerun()
+                self.st.rerun()
 
 
     def get_pubs_authors_for_year(self):

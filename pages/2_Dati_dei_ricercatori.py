@@ -95,7 +95,7 @@ if investigator:
         if st.button("Aggiorna pubblicazioni e metriche", key="scopus_details_all"):
             with st.spinner():
                 scopus.import_pubs(True, investigator.scopus_id)
-                st.experimental_rerun()
+                st.rerun()
         if investigator.n_pubs and investigator.n_pubs > 0:
             if has_all_pucs == False:
                 bt_text = "Recupera i PUC mancanti per " + str(investigator.pucs_missing) + " pubblicazioni "

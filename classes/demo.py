@@ -113,7 +113,7 @@ class Demo:
             user.insert_new()
         self.db.close()
         self.db.connect()
-        self.st.experimental_rerun()
+        self.st.rerun()
     
 
     def get_all_from_db(self, only_scopus = False):
@@ -126,7 +126,8 @@ class Demo:
         if only_scopus:
             sql += " and i.scopus_id IS NOT NULL "
         sql += "ORDER BY i.inv_name "
-        self.db.cur.execute(sql, [self.year])
+        #self.db.cur.execute(sql, [self.year])
+        self.db.cur.execute(sql, [2024])
         res = self.db.cur.fetchall()
         return res
 

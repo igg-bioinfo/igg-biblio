@@ -45,10 +45,10 @@ class Scopus:
             download_excel(self.st, df, "error_pubs_" + datetime.now().strftime("%Y-%m-%d_%H.%M"), 'failed')
             show_df(self.st, df)
             if len(df) > 0:
-                if self.st.button("Riprova ad importare le richieste fallite"):
+                if self.st.button("Riprova ad importare le pubblicazioni fallite"):
                     for i, row in df.iterrows():
                         self.import_by_year(row["SCOPUS ID"])
-                    self.st.experimental_rerun()
+                    self.st.rerun()
             
 
     def import_pubs(self, is_all, scopus = None):
@@ -71,7 +71,7 @@ class Scopus:
         if scopus != None:
             sql += " AND author_scopus = %s"
             params.append(scopus)
-        if is_all == False:
+        if not is_all:
             sql += " AND EXTRACT('Year' from TO_DATE(pub_date,'YYYY-MM-DD')) = %s "
             params.append(self.year)
         self.db.cur.execute(sql, params)
@@ -136,7 +136,11 @@ class Scopus:
             if len(df) > 0:
                 self.update_date = df["update"][0]
                 self.update_count_pubs = len(df)
-                self.update_count_authors = df["authors"].sum()
+                sql = "SELECT distinct author_scopus FROM scopus_pubs_all WHERE "
+                sql += "EXTRACT('Year' from TO_DATE(pub_date,'YYYY-MM-DD')) = %s "
+                self.db.cur.execute(sql, [self.year])
+                res = self.db.cur.fetchall()
+                self.update_count_authors = len(res)
                 dt = datetime.date(datetime.now()) - self.update_date
                 self.update_days = dt.days
                 return True
@@ -148,7 +152,7 @@ class Scopus:
         if can_update(self.st, self) and self.st.button("Importa le pubblicazioni degli autori in anagrafica per il " + str(self.year), key="scopus_pubs_" + str(self.year)):
             #with self.st.spinner():
                 self.import_pubs(False)
-                self.st.experimental_rerun()
+                self.st.rerun()
 
 
     def get_pubs_authors_for_year(self):
@@ -198,7 +202,7 @@ class Scopus:
         if can_update(self.st, self) and self.st.button("Aggiorna pubblicazioni e metriche (hindex, citazioni e numero di pubblicazioni) degli autori", key="scopus_albo_" + str(self.year)):
             #with self.st.spinner():
                 self.import_pubs(True)
-                self.st.experimental_rerun()
+                self.st.rerun()
 
 
     def sort_by_cited(self, e):
@@ -310,7 +314,7 @@ class Scopus:
                 params.append(puc["pub_year"])
                 self.db.cur.execute(sql, params)
                 self.db.conn.commit()
-        self.st.experimental_rerun()
+        self.st.rerun()
 
 
     #-----------------------------------AUTORI
@@ -350,7 +354,7 @@ class Scopus:
                         sql += "WHERE NOT EXISTS (SELECT 1 FROM scopus_invs WHERE scopus_inv_id = %s)"
                         self.db.cur.execute(sql, [inv_id, inv_name, inv_surname, inv_names, inv_areas, update_date, inv_id])
                         self.db.conn.commit()
-                    self.st.experimental_rerun()
+                    self.st.rerun()
 
 
     #-----------------------------------ALBO
