@@ -69,7 +69,7 @@ class Demo:
 
 
     def import_excel(self, excel):
-        df_excel = pd.read_excel(excel)
+        df_excel = pd.read_excel(excel, sheet_name=0)
         for col in self.import_columns:
             if col not in list(df_excel.columns):
                 self.st.error("'" + col + "' non è una colonna valida")
@@ -93,7 +93,7 @@ class Demo:
             name = row["Cognome"].strip().title() + " " + row["Nome"].strip().title()
             params = [name]
             for col in self.import_columns:
-                value = row[col]
+                value = str(row[col])
                 if str(value) in ["N.A.", "N.A", "nan", "NaT"]:
                     value = None
                 elif "e-mail" in col or col in ["ORCID", "ResearchID", "AuthorID Scopus"]:

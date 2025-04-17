@@ -91,7 +91,7 @@ def select_year(st, db, table = '', all: bool = False, label: str = "Anno selezi
         sql = "select distinct EXTRACT('Year' from TO_DATE(pub_date,'YYYY-MM-DD')) as pub_year from " + table + " ORDER BY EXTRACT('Year' from TO_DATE(pub_date,'YYYY-MM-DD')) DESC"
         db.cur.execute(sql)
         res = db.cur.fetchall()
-        years = [int(r[0]) for r in res]
+        years = [int(r[0]) for r in res if r[0] is not None]
         if datetime.now().year not in years:
             years.append(datetime.now().year)
             years.sort(reverse= True)
@@ -129,6 +129,7 @@ def admin_access(st, user):
 def check_year(year_now, pub_year, last_years):
     year_start = year_now - last_years
     return True if last_years == 0 else (pub_year >= year_start and pub_year < year_now)
+   # return True if last_years == 0 else (pub_year >= year_start and pub_year <= year_now)
 
 def show_df(st, df, left_index = False):
     if left_index == False:
