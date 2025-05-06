@@ -131,12 +131,17 @@ def check_year(year_now, pub_year, last_years):
     return True if last_years == 0 else (pub_year >= year_start and pub_year < year_now)
    # return True if last_years == 0 else (pub_year >= year_start and pub_year <= year_now)
 
-def show_df(st, df, left_index = False):
+def show_df(st, df, left_index = False, has_doi = False):
     if left_index == False:
         df.set_index(df.columns[0], inplace=True)
     if len(df) > 0:
         st.write(str(len(df)) + " occorenze")
-        st.dataframe(df, height=row_height)
+        if has_doi:
+            st.dataframe(df, height=row_height, column_config={
+                    "DOI": st.column_config.LinkColumn("DOI"),
+                })
+        else:
+            st.dataframe(df, height=row_height)
     else:
         st.error("Nessun dato trovato")
 

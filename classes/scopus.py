@@ -161,6 +161,8 @@ class Scopus:
             excel_cols_pub = self.excel_columns[:self.pubs_cols_n]
             cols = ""
             for col in cols_pub:
+                if col == 'doi':
+                    col = "'https://doi.org/' || doi as doi"
                 cols += col + ", "
             cols = cols[:-2]
             sql = "SELECT DISTINCT " + cols + " FROM scopus_pubs_all  "
@@ -170,7 +172,7 @@ class Scopus:
             res = self.db.cur.fetchall()
             df = pd.DataFrame(res, columns=excel_cols_pub)
             download_excel(self.st, df, "scopus_pubs_" + str(self.year) + "_" + datetime.now().strftime("%Y-%m-%d_%H.%M"), 'scopus_pubs')
-            show_df(self.st, df) 
+            show_df(self.st, df, has_doi = True) 
 
 
     #-----------------------------------METRICHE

@@ -47,7 +47,7 @@ class Statistics:
         sql += "order by unit "
         self.db.cur.execute(sql, params)
         res = self.db.cur.fetchall()
-        df = pd.DataFrame(res, columns=["Ricercatore", "Età", "Scopus", "H-index 5", "H-index 10", "H-index", "In attività"])
+        df = pd.DataFrame(res, columns=["Ricercatore", "Età", "Scopus", "H-index", "H-index 5", "H-index 10", "In attività"])
         download_excel(self.st, df, "unit_" + datetime.now().strftime("%Y-%m-%d_%H.%M"), "_unit")
         show_df(self.st, df)
 
