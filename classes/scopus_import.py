@@ -175,6 +175,7 @@ class Scopus_import:
                     if a["ce:indexed-name"] == ca:
                         puc["corr" + str(f)] = a["@auid"]
                         f += 1
+                        break
         return puc
 
 
