@@ -28,6 +28,7 @@ def set_title(st, title=""):
     if title == "":
         title = site_name
     st.title(title)
+    fixed_footer(st)
     #hide_menu(st)
 
 
@@ -156,3 +157,51 @@ def split_unit(df):
             if len(split) > 1:
                 df.loc[i, 'Tipo unità'] = split[1].replace(')', '')
     return df
+
+
+
+def fixed_footer(st):
+    footer_html = """
+    <style>
+    /* Aggiungi margine inferiore per non coprire l'ultimo contenuto */
+    /*
+    .stApp {
+        margin-bottom: 80px;
+    }
+    */
+    /* Footer fisso in basso */
+    .footer {
+        position: fixed;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        background-color: rgb(240, 242, 246);
+        color: #000000;
+        text-align: center;
+        padding: 10px 0;
+        font-size: 14px;
+        border-top: 1px solid #d0d0d0;
+        z-index: 9999; /* <--- forza il footer sopra tutti gli altri elementi */
+    }
+    .footer a {
+        color: #0066cc;
+        text-decoration: none;
+    }
+    .footer a:hover {
+        text-decoration: underline;
+    }
+    </style>
+
+    <div class="footer">
+        <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">
+            <img alt="Licenza Creative Commons" style="border-width:0"
+                 src="https://licensebuttons.net/l/by/4.0/88x31.png" />
+        </a>
+        <br />
+        Questo contenuto è distribuito con licenza
+        <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">
+            Creative Commons Attribution 4.0 Internazionale
+        </a>
+    </div>
+    """
+    st.markdown(footer_html, unsafe_allow_html=True)
