@@ -2,6 +2,7 @@ import pandas as pd
 from datetime import datetime 
 from utils import *
 import random
+from classes.igg_ldap import *
 
 class User:
     st = None
@@ -40,13 +41,21 @@ class User:
 
 
     #-----------------------------------GENERALI
-    def __init__(self, st, db, name = ""):
+    def __init__(self, st, db, name = "", id = ""):
         self.st = st
         self.db = db
-        if name != "":
-            self.name = name
-            self.get_investigator()
-            self.db.cur.execute("SELECT user_id, user_name, user_type, name, is_enabled FROM users WHERE name = %s", [self.name])
+        if name != "" or id != "":
+            params = []
+            if name != "":
+                self.name = name
+                self.get_investigator()
+                filter = "name = %s"
+                params.append(self.name)
+            else:
+                self.id = id
+                filter = "user_id = %s"
+                params.append(self.id)
+            self.db.cur.execute("SELECT user_id, user_name, user_type, name, is_enabled FROM users WHERE " + filter, params)
             res = self.db.cur.fetchone()
             if res != None:
                 self.id = res[0]
@@ -85,31 +94,35 @@ class User:
             self.user_confirmed = res[10] == '1'
             self.update_date = res[11]
 
-
     def login(self):
-        def check_get_user():
-            self.db.cur.execute("SELECT user_id, user_name, user_type, name FROM users WHERE user_name = %s and user_password = %s and user_type IN ('admin', 'superadmin')",
-                                [self.st.session_state["username"], self.st.session_state["password"]])
-            res = self.db.cur.fetchone()
-            if res != None:
-                del self.st.session_state["username"]
-                del self.st.session_state["password"]
-                self.st.session_state["logged_user"] = {'id': res[0], 'name': res[3], 'user_name': res[1], 'user_type': res[2]}
-                self.st.rerun()
-            else:
-                self.st.error("Credenziali errate")
-                self.st.session_state["logged_user"] = None
-
-        if "logged_user" not in self.st.session_state or self.st.session_state["logged_user"] == None:
+        if "logged_user" in self.st.session_state and self.st.session_state["logged_user"] is not None:
+            return True
+        if "logged_user" not in self.st.session_state or self.st.session_state["logged_user"] is None:
             with self.st.form("login_form"):
                 self.st.write("LOGIN")
-                self.st.text_input("Utente", key="username")
+                self.st.text_input("Cartellino", key="username")
                 self.st.text_input("Password", type="password", key="password")
                 if self.st.form_submit_button("Entra"):
-                    with self.st.spinner():
-                        check_get_user()
-        else:
-            return True
+                    with self.st.spinner("Autenticazione in corso..."):
+                        ldap = IGGldap(self.st)
+                        user = ldap.login(self.st.session_state["username"], self.st.session_state["password"])
+                        self.st.write(user)
+                        if user is not None:
+                            self.db.cur.execute("""
+                                SELECT user_id, user_name, user_type, name
+                                FROM users
+                                WHERE user_name = %s AND user_type IN ('admin', 'superadmin')
+                            """, [user["email"].strip().lower()])
+                            res = self.db.cur.fetchone()
+                            if res is not None:
+                                del self.st.session_state["username"]
+                                del self.st.session_state["password"]
+                                self.st.session_state["logged_user"] = {'id': res[0], 'name': res[3], 'user_name': res[1], 'user_type': res[2]}
+                                self.st.rerun()
+                            else:
+                                self.st.error("Utente autenticato LDAP ma non abilitato all'applicazione.")
+                        else:
+                            self.st.session_state["logged_user"] = None
         return False
 
 

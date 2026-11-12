@@ -8,3 +8,4 @@ dependencies:
       - streamlit
   - psycopg2-binary
   - openpyxl
+  - ldap3

@@ -21,6 +21,8 @@ if user.login():
         st.write("L'ultimo aggiornamento del **" + str(demo.update_date) + " ("+ str(demo.update_days) + " giorni fa)**")
         st.write("Teste totali: **" + str(demo.update_count) + "**")
         st.write("Teste con Scopus ID: **" + str(demo.update_count_filter) + "**") # con Scopus ID e ancora attivi
+    demo.update_from_doc2res()
+    st.write("Oppure")
     demo.upload_excel()
     #st.markdown("###### Autori con affiliazione Gaslini recuperati da Scopus")
     #scopus_autori = Scopus(st, db, year)

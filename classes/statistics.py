@@ -7,6 +7,7 @@ import json
 
 class Statistics:
 
+    inv_ids = []
     no_units = "NESSUNA UO"
 
     #-----------------------------------GENERALI
@@ -27,7 +28,9 @@ class Statistics:
         for r in res:
             units.append(r[0])
         return self.st.selectbox('Unità selezionata:', units)
-    
+
+
+    #-----------------------------------STATISTICHE
     def get_invs_by_unit(self, unit):
         params = [self.year, self.year]
         sql = ""
@@ -52,7 +55,6 @@ class Statistics:
         show_df(self.st, df)
 
 
-    #-----------------------------------STATISTICHE
     def get_stats_units(self, filter_age = 0):
         sql = ""
         sql += "select * from ( "
@@ -83,5 +85,43 @@ class Statistics:
         self.st.markdown("### Metriche per unità" + filter_msg + "")
         filter_label = str(filter_age) + "_" if filter_age > 0 else ""
         download_excel(self.st, df, "stats_units_" + filter_label + datetime.now().strftime("%Y-%m-%d_%H.%M"), filter_label)
+        show_df(self.st, df)
+
+
+    def get_invs_by_names(self, names):
+        params = [self.year, self.year]
+        sql = ""
+        sql += "select u.user_id, i.inv_name, i.age, i.scopus_id, "
+        sql += "case when hindex is null then 0 else hindex end hindex, "
+        sql += "case when hindex5 is null then 0 else hindex5 end hindex5, "
+        sql += "case when hindex10 is null then 0 else hindex10 end hindex10, "
+        sql += "case when i.date_end is null or i.date_end > now() then true else false end is_active "
+        sql += "from view_invs i "
+        sql += "left outer join scopus_metrics m on m.author_scopus = i.scopus_id and m.update_year = %s "
+        sql += "left outer join users u on u.user_name = i.user_name "
+        sql += "where i.update_year = %s "
+        sql += "and i.inv_name in (" + ", ".join("'" + name.replace("'", "''") + "'" for name in names)+ ") "
+        sql += "order by i.inv_name "
+        self.db.cur.execute(sql, params)
+        res = self.db.cur.fetchall()
+        df = pd.DataFrame(res, columns=["Id", "Ricercatore", "Età", "Scopus", "H-index", "H-index 5", "H-index 10", "In attività"])
+
+        media = df[["Età", "H-index", "H-index 5", "H-index 10"]].mean()
+        riga_cordata = {
+            "Id": None,
+            "Ricercatore": "Cordata",
+            "Età": media["Età"],
+            "Scopus": None,
+            "H-index": media["H-index"],
+            "H-index 5": media["H-index 5"],
+            "H-index 10": media["H-index 10"],
+            "In attività": None
+        }
+        df.loc[len(df)] = riga_cordata
+
+        self.inv_ids = [str(id) for id in df["Id"] if pd.notna(id)]
+        df.drop(columns=["Id"], inplace=True)
+        
+        download_excel(self.st, df, "cordata_" + datetime.now().strftime("%Y-%m-%d_%H.%M"), "_cordata")
         show_df(self.st, df)
 

@@ -137,12 +137,13 @@ def show_df(st, df, left_index = False, has_doi = False):
         df.set_index(df.columns[0], inplace=True)
     if len(df) > 0:
         st.write(str(len(df)) + " occorenze")
+        #, height=666
         if has_doi:
-            st.dataframe(df, height=row_height, column_config={
+            st.dataframe(df, column_config={
                     "DOI": st.column_config.LinkColumn("DOI"),
                 })
         else:
-            st.dataframe(df, height=row_height)
+            st.dataframe(df)
     else:
         st.error("Nessun dato trovato")
 

@@ -2,6 +2,7 @@ import pandas as pd
 from datetime import datetime 
 from utils import *
 from classes.user import *
+from classes.doc2res import *
 
 class Demo:
     st = None
@@ -34,9 +35,120 @@ class Demo:
         self.st = st
         self.db = db
         self.year = datetime.now().year if year == None else year
+    
 
-    def get_description(self):
-        pass
+    #----------------UPDATE FROM EXCEL
+    def upload_excel(self):
+        with self.st.form("upload-form", clear_on_submit=True):
+            uploaded_file = self.st.file_uploader("**Importa un file excel per l'anagrafica che abbia le seguenti colonne: " + 
+                                              (", ".join(self.import_columns)) + "**", type=['.xlsx', '.xls'])
+            submitted = self.st.form_submit_button("Importa file")
+
+        if submitted and uploaded_file is not None:
+            with self.st.spinner():
+                df_excel = pd.read_excel(uploaded_file, sheet_name=0)
+                self.import_df(df_excel)
+    
+
+    #----------------UPDATE FROM DOC2RES
+    def update_from_doc2res(self):
+        if self.st.button("Aggiorna l'anagrafica dei ricercatori tramite Doc2Res"):
+            doc2res = Doc2res(self.st, self.year)
+            with self.st.spinner():
+                doc2res.get_all(self.import_columns)
+                self.import_df(doc2res.df)
+    
+
+    #----------------INSERT IN DB
+    def import_df(self, df):
+        for col in self.import_columns:
+            if col not in list(df.columns):
+                self.st.error("'" + col + "' non è una colonna valida")
+                return False
+        self.db.cur.execute("DELETE FROM investigators WHERE update_year = %s;",  [self.year])
+        self.db.conn.commit()
+        self.create_sql2(df)
+        self.delete_duplicate()
+
+
+    def create_sql2(self, df_excel):
+        sql_fields = "INSERT INTO investigators (inv_name, "
+        sql_values = ") VALUES (%s, "
+        for col in self.columns:
+            if col != "age":
+                sql_fields += ("email" if col == "user_name" else col) + ", "
+                sql_values += "%s, "
+        sql_fields += "update_date, update_year"
+        sql_values += "%s, %s)"
+        update_date = datetime.date(datetime.now())
+        for i, row in df_excel.iterrows():
+            name = row["Cognome"].strip().title() + " " + row["Nome"].strip().title()
+            params = [name]
+            for col in self.import_columns:
+                value = row[col]
+                if pd.isna(value) or (isinstance(value, str) and value.strip() in ["None", "N.A.", "N.A"]):
+                    value = None
+                elif value is not None and ("e-mail" in col or col in ["ORCID", "ResearchID", "AuthorID Scopus"]):
+                    value = str(value).strip().lower()
+                elif col == "EleggibilitàWF":
+                    value = str(value).strip().upper() in ["TRUE", "1"]
+                elif isinstance(value, str):
+                    value = value.strip().title()
+                params.append(value)
+            params.append(update_date)
+            params.append(self.year)
+           # self.st.success(sql_fields + sql_values)
+           # self.st.success(params)
+            self.db.cur.execute(sql_fields + sql_values, params)
+            self.db.conn.commit()
+            user = User(self.st, self.db, name)
+            user.user_name = row["e-mail"]
+            user.insert_new()
+        self.delete_duplicate()
+        self.db.close()
+        self.st.rerun()
+
+    def delete_duplicate(self):
+        sql = """DELETE FROM investigators f 
+        WHERE f.update_year = %s AND f.date_end is not null AND f.inv_name IN (
+            SELECT DISTINCT i.inv_name FROM investigators i
+            INNER JOIN (
+                SELECT inv_name, COUNT(inv_name) as n_dup FROM investigators WHERE update_year = %s GROUP BY inv_name
+            ) d ON i.inv_name = d.inv_name AND d.n_dup > 1
+            WHERE i.update_year = %s
+        )"""
+        params = [self.year, self.year, self.year]
+        self.db.cur.execute(sql, params)
+        self.db.conn.commit()
+    
+    
+    #----------------OTHER FUNCTIONS
+    def get_all_from_db(self, only_scopus = False, only_enable = False):
+        cols = ""
+        for col in self.columns:
+            cols += "i." + col + ", "
+        cols = cols[:-2]
+        sql = "SELECT i.inv_name, " + cols + "  FROM view_invs i "
+        sql += "WHERE i.update_year = %s "
+        if only_scopus:
+            sql += " and i.scopus_id IS NOT NULL "
+        if only_enable:
+            sql += " and i.scopus_id IS NOT NULL "
+        sql += "ORDER BY i.inv_name "
+        self.db.cur.execute(sql, [self.year])
+        res = self.db.cur.fetchall()
+        return res
+
+
+    def get_all(self):
+        with self.st.spinner():
+            res = self.get_all_from_db()
+            df = pd.DataFrame(res, columns=self.excel_columns, index=None)
+            df = split_unit(df)
+            df_grid = df.drop("Nascita", axis=1).drop("Workflow", axis=1).reset_index(drop=True)
+            download_excel(self.st, df_grid, "investigators_" + datetime.now().strftime("%Y-%m-%d_%H.%M"))
+            show_df(self.st, df_grid)
+
 
     def get_update_details(self):
         with self.st.spinner():
@@ -54,89 +166,3 @@ class Demo:
                 self.update_count_filter = len(res1)
                 return True
         return False
-    
-
-    def upload_excel(self):
-        self.get_description()
-        with self.st.form("upload-form", clear_on_submit=True):
-            uploaded_file = self.st.file_uploader("**Importa un file excel per l'anagrafica che abbia le seguenti colonne: " + 
-                                              (", ".join(self.import_columns)) + "**", type=['.xlsx', '.xls'])
-            submitted = self.st.form_submit_button("Importa file")
-
-        if submitted and uploaded_file is not None:
-            with self.st.spinner():
-                self.import_excel(uploaded_file)
-
-
-    def import_excel(self, excel):
-        df_excel = pd.read_excel(excel, sheet_name=0)
-        for col in self.import_columns:
-            if col not in list(df_excel.columns):
-                self.st.error("'" + col + "' non è una colonna valida")
-                return False
-        self.db.cur.execute("DELETE FROM investigators WHERE update_year = %s;",  [self.year])
-        self.db.conn.commit()
-        self.create_sql2(df_excel)
-
-
-    def create_sql2(self, df_excel):
-        sql_fields = "INSERT INTO investigators (inv_name, "
-        sql_values = ") VALUES (%s, "
-        for col in self.columns:
-            if col != "age":
-                sql_fields += ("email" if col == "user_name" else col) + ", "
-                sql_values += "%s, "
-        sql_fields += "update_date, update_year"
-        sql_values += "%s, %s)"
-        update_date = datetime.date(datetime.now())
-        for i, row in df_excel.iterrows():
-            name = row["Cognome"].strip().title() + " " + row["Nome"].strip().title()
-            params = [name]
-            for col in self.import_columns:
-                value = str(row[col])
-                if str(value) in ["N.A.", "N.A", "nan", "NaT"]:
-                    value = None
-                elif "e-mail" in col or col in ["ORCID", "ResearchID", "AuthorID Scopus"]:
-                    value = value.strip().lower()
-                elif col == "EleggibilitàWF":
-                    value = True if str(value).upper() in ['TRUE', '1'] else False
-                elif isinstance(value, str):
-                    value = value.strip().title()
-                params.append(value)
-            params.append(update_date)
-            params.append(self.year)
-            self.st.success(sql_fields + sql_values)
-            self.st.success(params)
-            self.db.cur.execute(sql_fields + sql_values, params)
-            self.db.conn.commit()
-            user = User(self.st, self.db, name)
-            user.insert_new()
-        self.db.close()
-        self.db.connect()
-        self.st.rerun()
-    
-
-    def get_all_from_db(self, only_scopus = False):
-        cols = ""
-        for col in self.columns:
-            cols += "i." + col + ", "
-        cols = cols[:-2]
-        sql = "SELECT i.inv_name, " + cols + "  FROM view_invs i "
-        sql += "WHERE i.update_year = %s "
-        if only_scopus:
-            sql += " and i.scopus_id IS NOT NULL "
-        sql += "ORDER BY i.inv_name "
-        #self.db.cur.execute(sql, [self.year])
-        self.db.cur.execute(sql, [2024])
-        res = self.db.cur.fetchall()
-        return res
-
-
-    def get_all(self):
-        with self.st.spinner():
-            res = self.get_all_from_db()
-            df = pd.DataFrame(res, columns=self.excel_columns, index=None)
-            df = split_unit(df)
-            df_grid = df.drop("Nascita", axis=1).drop("Workflow", axis=1).reset_index(drop=True)
-            download_excel(self.st, df_grid, "investigators_" + datetime.now().strftime("%Y-%m-%d_%H.%M"))
-            show_df(self.st, df_grid)

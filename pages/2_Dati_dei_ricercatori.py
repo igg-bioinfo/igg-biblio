@@ -22,6 +22,7 @@ for inv in demo.get_all_from_db():
 inv_name = st.multiselect('Scegli un ricercatore tra i ' + str(len(invs)) + ' presenti in db:', invs, max_selections= 1)
 if inv_name:
     investigator = User(st, db, inv_name[0])
+    investigator.get_investigator()
     
 if investigator:
     if investigator.update_date:
